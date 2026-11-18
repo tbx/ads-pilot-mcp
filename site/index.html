@@ -156,7 +156,8 @@
   .road li { border-top: 3px solid var(--line); padding-top: 18px; }
   .road li.now { border-top-color: var(--brand); }
   .road b { display: block; font-size: 18px; font-weight: 700; }
-  .road .now b::after { content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--brand); margin-left: 8px; vertical-align: middle; }
+  .road em { display: block; font-style: normal; font-size: 12px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--fg-muted); margin-bottom: 6px; }
+  .road .now em { color: var(--brand); }
   .road span { display: block; margin-top: 6px; color: var(--fg-muted); font-size: 16px; }
 
   /* Final */
@@ -193,6 +194,7 @@
     <nav>
       <a class="hide-sm" href="#guardrails"><span lang="en">Guardrails</span><span lang="de">Leitplanken</span></a>
       <a class="hide-sm" href="#start"><span lang="en">Get started</span><span lang="de">Loslegen</span></a>
+      <a class="hide-sm" href="#roadmap">Roadmap</a>
       <a href="https://github.com/tbx/ads-pilot-mcp">GitHub</a>
       <span class="lang" role="group" aria-label="Language"><button type="button" data-set="en">EN</button><span aria-hidden="true">/</span><button type="button" data-set="de">DE</button></span>
     </nav>
@@ -332,15 +334,18 @@ ADS_PILOT_PROFILE=fjord uv run ads-pilot-check</pre>
   </section>
 
   <!-- Roadmap -->
-  <section>
+  <section id="roadmap">
     <div class="wrap">
-      <h2><span lang="en">Where it is going.</span><span lang="de">Wohin es geht.</span></h2>
-      <p class="lead"><span lang="en">The guardrails stay the same in every version.</span><span lang="de">Die Leitplanken bleiben in jeder Version gleich.</span></p>
+      <h2>Roadmap</h2>
+      <p class="lead">
+        <span lang="en">ads-pilot grows in four versions. Version 1 is available today, the others are planned. Dry run, allowlist and change log apply to every version.</span>
+        <span lang="de">ads-pilot wächst in vier Versionen. Version 1 ist heute verfügbar, die weiteren sind geplant. Probelauf, Freigabeliste und Protokoll gelten für jede Version.</span>
+      </p>
       <ol class="road">
-        <li class="now"><b><span lang="en">Optimize</span><span lang="de">Optimieren</span></b><span lang="en">Reports and the daily changes. Available now.</span><span lang="de">Auswertungen und die täglichen Änderungen. Jetzt verfügbar.</span></li>
-        <li><b><span lang="en">Build</span><span lang="de">Aufbauen</span></b><span lang="en">Complete Search campaigns, started paused, budget capped.</span><span lang="de">Komplette Suchkampagnen, pausiert gestartet, Budget gedeckelt.</span></li>
-        <li><b><span lang="en">Extend</span><span lang="de">Erweitern</span></b><span lang="en">More campaign types, assets, keyword research.</span><span lang="de">Weitere Kampagnentypen, Assets, Keyword-Recherche.</span></li>
-        <li><b><span lang="en">Accompany</span><span lang="de">Begleiten</span></b><span lang="en">Recurring checks. Claude proposes, you approve.</span><span lang="de">Regelmäßige Prüfungen. Claude schlägt vor, Sie geben frei.</span></li>
+        <li class="now"><em><span lang="en">Version 1 · available now</span><span lang="de">Version 1 · jetzt verfügbar</span></em><b><span lang="en">Optimize</span><span lang="de">Optimieren</span></b><span lang="en">Reports and the daily changes to keywords, ads, bids and ad copy.</span><span lang="de">Auswertungen und die täglichen Änderungen an Keywords, Anzeigen, Geboten und Texten.</span></li>
+        <li><em><span lang="en">Version 2 · planned</span><span lang="de">Version 2 · geplant</span></em><b><span lang="en">Build campaigns</span><span lang="de">Kampagnen aufbauen</span></b><span lang="en">Create complete Search campaigns. They start paused, with a budget cap per profile.</span><span lang="de">Komplette Suchkampagnen anlegen. Sie starten pausiert, mit einer Budgetgrenze pro Profil.</span></li>
+        <li><em><span lang="en">Version 3 · planned</span><span lang="de">Version 3 · geplant</span></em><b><span lang="en">More campaign types</span><span lang="de">Weitere Kampagnentypen</span></b><span lang="en">Performance Max, assets and keyword research.</span><span lang="de">Performance Max, Assets und Keyword-Recherche.</span></li>
+        <li><em><span lang="en">Version 4 · planned</span><span lang="de">Version 4 · geplant</span></em><b><span lang="en">Recurring checks</span><span lang="de">Regelmäßige Prüfungen</span></b><span lang="en">Claude reviews accounts on a schedule and proposes changes for you to approve.</span><span lang="de">Claude prüft Konten in festen Abständen und schlägt Änderungen vor, die Sie freigeben.</span></li>
       </ol>
     </div>
   </section>
