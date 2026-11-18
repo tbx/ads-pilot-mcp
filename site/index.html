@@ -8,7 +8,7 @@
 <title>ads-pilot</title>
 <meta name="description" content="Run Google Ads through Claude. A small, local MCP server with guardrails built for agencies: dry run first, allowlist per account, change log, no deleting.">
 <meta name="author" content="Tobias Leingruber">
-<meta property="og:title" content="ads-pilot: Google Ads through Claude, with guardrails">
+<meta property="og:title" content="ads-pilot: Steer Google Ads through Claude, with guardrails">
 <meta property="og:description" content="A small, local MCP server for Google Ads. Every change is a dry run first. Only allowed accounts. Everything logged.">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://tbx.github.io/ads-pilot-mcp/">
@@ -101,7 +101,6 @@
   .hero img.bg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 50% 38%; }
   .hero::after { content: ""; position: absolute; inset: 0; background: linear-gradient(to top, rgba(10,10,10,.82) 0%, rgba(10,10,10,.45) 45%, rgba(10,10,10,.10) 100%); }
   .hero .wrap { position: relative; z-index: 2; padding-block: clamp(80px, 10vw, 130px) calc(100lvh - 100svh + clamp(80px, 10vw, 130px)); }
-  .eyebrow { font-size: 15px; font-weight: 600; color: rgba(255,255,255,.75); margin-bottom: 18px; }
   h1 { font-size: min(clamp(44px, 8vw, 104px), 11.2vw - 5px); line-height: 0.96; max-width: 16ch; color: #fff; }
   .hero .lede { margin-top: 28px; font-size: clamp(18px, 2vw, 24px); line-height: 1.4; font-weight: 500; max-width: 46ch; color: rgba(255,255,255,.88); }
   .cta { margin-top: 36px; display: flex; flex-wrap: wrap; gap: 12px; }
@@ -205,14 +204,13 @@
   <section class="hero" id="top">
     <img class="bg" src="hero.jpg" srcset="hero-1200.jpg 1200w, hero.jpg 2000w" sizes="100vw" alt="" width="2000" height="1619" fetchpriority="high">
     <div class="wrap">
-      <p class="eyebrow"><span lang="en">MCP server for Google Ads</span><span lang="de">MCP-Server für Google Ads</span></p>
       <h1>
-        <span lang="en">Google Ads through Claude. With guardrails.</span>
-        <span lang="de">Google Ads über Claude. Mit Leitplanken.</span>
+        <span lang="en">Steer Google Ads through Claude, with guardrails.</span>
+        <span lang="de">Google Ads über Claude lenken, mit Leitplanken.</span>
       </h1>
       <p class="lede">
-        <span lang="en">Report, pause, add keywords, adjust bids, sharpen ad copy, right from the conversation. Every change starts as a dry run and only goes live after your yes.</span>
-        <span lang="de">Auswerten, pausieren, Keywords ergänzen, Gebote anpassen, Anzeigentexte schärfen, direkt im Gespräch. Jede Änderung startet als Probelauf und geht erst nach Ihrem Ja live.</span>
+        <span lang="en">A local MCP server for Claude. Report, pause, add keywords, adjust bids, right from the conversation. Every change starts as a dry run and only goes live after your yes.</span>
+        <span lang="de">Ein lokaler MCP-Server für Claude. Auswerten, pausieren, Keywords ergänzen, Gebote anpassen, direkt im Gespräch. Jede Änderung startet als Probelauf und geht erst nach Ihrem Ja live.</span>
       </p>
       <div class="cta">
         <a class="btn brand" href="https://github.com/tbx/ads-pilot-mcp">
