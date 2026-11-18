@@ -106,7 +106,7 @@ It uses the newest `client_secret_*.json` from your Downloads folder. (Stored it
 A browser window opens:
 1. Choose the Google account that has access to your Google Ads accounts.
 2. "Google hasn't verified this app" names you as the developer. That is normal for your own app: click **Go to ads-pilot (unsafe)** in the red box (on some screens first **Advanced**).
-3. Google lists broad rights (budgets, billing, deleting). That is the only Google Ads permission Google offers. ads-pilot itself never deletes and never touches budgets or billing, and it can never do more than your Google account. Click **Continue**.
+3. Google lists broad rights (budgets, billing, deleting). That is the only Google Ads permission Google offers. ads-pilot itself never deletes, never touches billing, changes budgets only within the limits in your profile, and it can never do more than your Google account. Click **Continue**.
 
 The Terminal shows "Signed in". The program has written `client_id`, `client_secret` and `refresh_token` into `profiles/acme.yaml`. You do not need to copy anything.
 
@@ -125,6 +125,8 @@ Open `profiles/acme.yaml` in a text editor (e.g. TextEdit). Account IDs are show
 | `default_customer_id` | The account Claude works in when you do not name another one |
 | `allowed_customer_ids` | The **only** accounts Claude may change, one line each. Claude can read every account your login sees, but changes only these. |
 | `login_customer_id` | Only if you reach the account through a manager account (MCC): the manager account's ID. Otherwise leave `""`. |
+| `max_daily_budget` | The highest daily budget Claude may set for a campaign, in the account currency. Remove the line to switch budget changes off. |
+| `max_budget_change_percent` | The largest budget change per step, in percent (default 50). |
 
 **Manager account or not?** In Google Ads, click the account name at the top right. If you first see a manager account with the client accounts below it, you use an MCC. Not sure? Leave it empty; the test in step 5 lists every account your login can see.
 

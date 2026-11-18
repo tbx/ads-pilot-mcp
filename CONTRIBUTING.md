@@ -6,7 +6,7 @@ Thanks for wanting to improve ads-pilot-mcp.
 
 - Open an issue first for anything larger than a small fix, so we can agree on the approach.
 - Keep it small and readable. Fewer tools that work safely beat many half-finished ones.
-- The guardrails are not negotiable: dry run by default, allowlist per profile, change log, no delete, no budgets, billing, users or account settings.
+- The guardrails are not negotiable: dry run by default, allowlist per profile, change log, no delete, budgets only within the profile's limits, no billing, users or account settings.
 
 ## Contributor License Agreement
 

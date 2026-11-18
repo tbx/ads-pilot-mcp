@@ -12,3 +12,6 @@ default_customer_id: "123-456-7890"  # account used when none is named
 
 allowed_customer_ids:                # the ONLY accounts Claude may change
   - "123-456-7890"
+
+max_daily_budget: 100                # highest daily budget per campaign, in account currency
+max_budget_change_percent: 50        # largest budget change per step, in percent

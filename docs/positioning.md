@@ -35,7 +35,7 @@ Agencies face one more risk that hardly any tool guards against on purpose: **a 
 2. **Allowlist per profile.** Write access only to accounts listed in the profile. Claude cannot change that list.
 3. **One profile per client.** The profile is chosen at startup. Every response names the profile and the customer ID.
 4. **No deleting.** Only pause and enable, which can always be undone.
-5. **No sensitive areas.** No budgets, billing, users or account settings.
+5. **No sensitive areas.** No billing, users or account settings. Campaign budgets only up to a cap per profile and in limited steps.
 6. **A complete change log.** Every executed change with time, profile, account, object, old and new value. Easy to show to the client and to reverse by hand if needed.
 
 ## What it does
@@ -47,6 +47,7 @@ Agencies face one more risk that hardly any tool guards against on purpose: **a 
 - Add keywords to ad groups
 - Bid adjustments for devices and times of day (ad schedule)
 - Change final URL, headlines and descriptions of Responsive Search Ads
+- Daily campaign budgets, within the profile's limits
 
 **Roadmap**
 
@@ -86,7 +87,7 @@ ads-pilot-mcp deliberately chooses less scope, calm over speed, and protection a
 
 > **ads-pilot-mcp** lets Claude work in Google Ads accounts without touching the web interface: report, pause or enable keywords and ads, add keywords, adjust bids by device and time of day, refine ad copy.
 >
-> Built for anyone who manages several client accounts. Every change starts as a dry run showing the old and the new value. It only runs after confirmation, and only in accounts the profile allows. Everything goes into a change log. Deleting, budgets and billing are deliberately out of reach.
+> Built for anyone who manages several client accounts. Every change starts as a dry run showing the old and the new value. It only runs after confirmation, and only in accounts the profile allows. Everything goes into a change log. Budgets change only within the limits you set per profile; deleting and billing are deliberately out of reach.
 >
 > Small and local: the server runs on your own machine with your own Google Cloud project, and the code is quick to read.
 >
@@ -96,7 +97,7 @@ ads-pilot-mcp deliberately chooses less scope, calm over speed, and protection a
 
 > **ads-pilot-mcp** lässt Claude in Google-Ads-Konten arbeiten, ohne die Weboberfläche zu bedienen: auswerten, Keywords und Anzeigen pausieren oder aktivieren, Keywords ergänzen, Gebote nach Gerät und Uhrzeit anpassen, Anzeigentexte überarbeiten.
 >
-> Gebaut für alle, die mehrere Kundenkonten betreuen. Jede Änderung startet als Probelauf mit altem und neuem Wert. Ausgeführt wird erst nach Bestätigung und nur in Konten, die im Profil freigegeben sind. Alles landet in einem Änderungsprotokoll. Löschen, Budgets und Abrechnung sind bewusst nicht möglich.
+> Gebaut für alle, die mehrere Kundenkonten betreuen. Jede Änderung startet als Probelauf mit altem und neuem Wert. Ausgeführt wird erst nach Bestätigung und nur in Konten, die im Profil freigegeben sind. Alles landet in einem Änderungsprotokoll. Budgets ändern sich nur innerhalb der Grenzen, die Sie pro Profil festlegen; Löschen und Abrechnung sind bewusst nicht möglich.
 >
 > Klein und lokal: Der Server läuft auf dem eigenen Rechner mit dem eigenen Google-Cloud-Projekt, und der Code ist schnell gelesen.
 >

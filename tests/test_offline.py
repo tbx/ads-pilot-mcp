@@ -136,7 +136,7 @@ def test_tools_are_registered(profile):
     assert asyncio.run(names()) == {
         "show_profile", "list_accounts", "run_gaql", "recent_changes",
         "set_status", "add_keywords", "set_device_bid_adjustment",
-        "set_ad_schedule_bid_adjustment", "update_responsive_search_ad",
+        "set_ad_schedule_bid_adjustment", "update_responsive_search_ad", "set_campaign_budget",
     }
 
 

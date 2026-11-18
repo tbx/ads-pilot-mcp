@@ -4,7 +4,7 @@
 
 ads-pilot-mcp lets Claude work in Google Ads accounts without touching the web interface: report, pause or enable keywords and ads, add keywords, adjust bids by device and time of day, refine ad copy.
 
-Built for anyone who manages several client accounts. Every change starts as a dry run showing the old and the new value. It only runs after confirmation, and only in accounts the profile allows. Everything goes into a change log. Deleting, budgets and billing are deliberately out of reach.
+Built for anyone who manages several client accounts. Every change starts as a dry run showing the old and the new value. It only runs after confirmation, and only in accounts the profile allows. Everything goes into a change log. Budgets change only within the limits you set per profile; deleting and billing are deliberately out of reach.
 
 Small and local: the server runs on your own machine with your own Google Cloud project, and the code is quick to read. For reporting only, Google's own [Google Ads MCP server](https://github.com/googleads/google-ads-mcp) is a good choice too.
 
@@ -23,14 +23,16 @@ Small and local: the server runs on your own machine with your own Google Cloud 
 | `set_device_bid_adjustment` | Bid adjustment per device, -100% to +900% |
 | `set_ad_schedule_bid_adjustment` | Bid adjustment per time window (ad schedule) |
 | `update_responsive_search_ad` | Final URL, headlines, descriptions of a responsive search ad |
+| `set_campaign_budget` | Daily budget of a campaign, within the profile's limits |
 
 ## Guardrails
 
 1. **Dry run by default.** A write tool first only validates with Google and returns every change with old and new value plus a `confirm_token`. It executes only when called again with `confirm=true` and that token. The token no longer fits if the arguments or the account changed in between.
 2. **Allowlist per profile.** Writes go only to `allowed_customer_ids`. Claude cannot change that list.
 3. **One profile per login.** Chosen at startup. Every response names profile and customer ID.
-4. **No deleting.** Only pause and enable. No budgets, billing, users or account settings.
-5. **Change log.** Every executed change goes to `logs/changes.jsonl` with time, profile, account, object, old and new value.
+4. **No deleting.** Only pause and enable. No billing, users or account settings.
+5. **Budget limits.** Campaign budgets only up to `max_daily_budget` and at most `max_budget_change_percent` per step (default 50%), set in the profile. No shared budgets.
+6. **Change log.** Every executed change goes to `logs/changes.jsonl` with time, profile, account, object, old and new value.
 
 ## Installation
 

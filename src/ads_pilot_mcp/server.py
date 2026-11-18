@@ -36,7 +36,8 @@ Changing things always takes two calls:
 2. Only after the user explicitly says yes to exactly these changes, call the same tool
    again with the same arguments, confirm=true and the confirm_token.
 Never set confirm=true on your own initiative. Find IDs with run_gaql first.
-Deleting, budgets, billing, users and account settings are not available on purpose.
+Deleting, billing, users and account settings are not available on purpose. Campaign budgets
+only within the profile's max_daily_budget and max_budget_change_percent.
 """
 
 Status = Literal["PAUSED", "ENABLED"]
@@ -92,6 +93,8 @@ def create_server(profile: Profile, ads: Ads | None = None, log_folder: Path | N
             "customer_id": format_customer_id(profile.default_customer_id) if profile.default_customer_id else None,
             "login_customer_id": format_customer_id(profile.login_customer_id) if profile.login_customer_id else None,
             "writable_customer_ids": sorted(format_customer_id(c) for c in profile.allowed_customer_ids),
+            "max_daily_budget": profile.max_daily_budget,
+            "max_budget_change_percent": profile.max_budget_change_percent,
         }
 
     @mcp.tool(annotations={"readOnlyHint": True})
@@ -228,6 +231,24 @@ def create_server(profile: Profile, ads: Ads | None = None, log_folder: Path | N
         return write("set_ad_schedule_bid_adjustment", customer_id, login_customer_id, confirm, confirm_token,
                      lambda cid, login: writes.plan_schedule_bid(ads, cid, login, campaign_id, list(days), start, end,
                                                                  adjustment_percent))
+
+    @mcp.tool(annotations=write_hints)
+    def set_campaign_budget(
+        campaign_id: str,
+        daily_amount: float,
+        customer_id: str | None = None,
+        login_customer_id: str | None = None,
+        confirm: bool = False,
+        confirm_token: str | None = None,
+    ) -> dict[str, Any]:
+        """Set the average daily budget of one campaign, in the account currency (e.g. 45.50).
+        Limits from the profile: never above max_daily_budget, at most max_budget_change_percent per step
+        (default 50%), no shared budgets. Use show_profile to see the limits.
+        First call = dry run. Execute only after the user approved, with confirm=true and confirm_token."""
+        return write("set_campaign_budget", customer_id, login_customer_id, confirm, confirm_token,
+                     lambda cid, login: writes.plan_campaign_budget(
+                         ads, cid, login, campaign_id, daily_amount,
+                         profile.max_daily_budget, profile.max_budget_change_percent))
 
     @mcp.tool(annotations=write_hints)
     def update_responsive_search_ad(

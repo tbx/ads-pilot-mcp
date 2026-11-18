@@ -35,7 +35,7 @@ Für Agenturen kommt ein Risiko dazu, das kaum ein Werkzeug gezielt abfängt: **
 2. **Freigabeliste pro Profil.** Schreibzugriff gibt es nur auf Konten, die im Profil stehen. Claude kann diese Liste nicht ändern.
 3. **Ein Profil pro Kunde.** Das Profil wird beim Start festgelegt. Jede Antwort nennt Profil und Kunden-ID.
 4. **Kein Löschen.** Nur pausieren und aktivieren. Das lässt sich immer zurücknehmen.
-5. **Keine heiklen Bereiche.** Keine Budgets, Abrechnung, Nutzer oder Kontoeinstellungen.
+5. **Keine heiklen Bereiche.** Keine Abrechnung, Nutzer oder Kontoeinstellungen. Kampagnenbudgets nur bis zu einer Obergrenze pro Profil und in begrenzten Schritten.
 6. **Lückenloses Protokoll.** Jede ausgeführte Änderung mit Zeit, Profil, Konto, Objekt, altem und neuem Wert. So lässt sie sich gegenüber dem Kunden belegen und bei Bedarf von Hand zurücknehmen.
 
 ## Was es kann
@@ -47,6 +47,7 @@ Für Agenturen kommt ein Risiko dazu, das kaum ein Werkzeug gezielt abfängt: **
 - Keywords zu Anzeigengruppen hinzufügen
 - Gebotsanpassungen für Geräte und Uhrzeiten (Werbezeitplaner)
 - Finale URL, Titel und Texte von Responsive Search Ads ändern
+- Tagesbudgets von Kampagnen, innerhalb der Grenzen im Profil
 
 **Ausblick**
 
@@ -86,7 +87,7 @@ ads-pilot-mcp setzt bewusst auf weniger Umfang, auf Ruhe statt Tempo und auf Sch
 
 > **ads-pilot-mcp** lässt Claude in Google-Ads-Konten arbeiten, ohne die Weboberfläche zu bedienen: auswerten, Keywords und Anzeigen pausieren oder aktivieren, Keywords ergänzen, Gebote nach Gerät und Uhrzeit anpassen, Anzeigentexte überarbeiten.
 >
-> Gebaut für alle, die mehrere Kundenkonten betreuen. Jede Änderung startet als Probelauf mit altem und neuem Wert. Ausgeführt wird erst nach Bestätigung und nur in Konten, die im Profil freigegeben sind. Alles landet in einem Änderungsprotokoll. Löschen, Budgets und Abrechnung sind bewusst nicht möglich.
+> Gebaut für alle, die mehrere Kundenkonten betreuen. Jede Änderung startet als Probelauf mit altem und neuem Wert. Ausgeführt wird erst nach Bestätigung und nur in Konten, die im Profil freigegeben sind. Alles landet in einem Änderungsprotokoll. Budgets ändern sich nur innerhalb der Grenzen, die Sie pro Profil festlegen; Löschen und Abrechnung sind bewusst nicht möglich.
 >
 > Klein und lokal: Der Server läuft auf dem eigenen Rechner mit dem eigenen Google-Cloud-Projekt, und der Code ist schnell gelesen.
 >

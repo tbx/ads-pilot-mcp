@@ -13,6 +13,8 @@ A profile file looks like this (see profiles/example.yaml):
     default_customer_id: "123-456-7890"
     allowed_customer_ids:      # accounts this server may change
       - "123-456-7890"
+    max_daily_budget: 100      # optional, highest daily budget per campaign
+    max_budget_change_percent: 50   # optional, largest change per step
 """
 
 from __future__ import annotations
@@ -66,6 +68,9 @@ class Profile:
     default_customer_id: str | None = None
     login_customer_id: str | None = None
     allowed_customer_ids: frozenset[str] = field(default_factory=frozenset)
+    # Budget guardrails: without max_daily_budget, budget changes are refused.
+    max_daily_budget: float | None = None
+    max_budget_change_percent: float = 50.0
 
     def resolve_customer_id(self, customer_id: str | None) -> str:
         return normalize_customer_id(customer_id or self.default_customer_id)
@@ -110,10 +115,24 @@ def load_profile(name: str | None = None) -> Profile:
         value = data.get(key)
         return normalize_customer_id(value) if value not in (None, "") else None
 
+    def optional_number(key: str) -> float | None:
+        value = data.get(key)
+        if value in (None, ""):
+            return None
+        try:
+            number = float(value)
+        except (TypeError, ValueError):
+            raise ConfigError(f"{key} in {path.name} must be a number, got '{value}'.")
+        if number <= 0:
+            raise ConfigError(f"{key} in {path.name} must be greater than 0.")
+        return number
+
     return Profile(
         name=name,
         auth=dict(auth),
         default_customer_id=optional_id("default_customer_id"),
         login_customer_id=optional_id("login_customer_id"),
         allowed_customer_ids=frozenset(normalize_customer_id(v) for v in data.get("allowed_customer_ids") or []),
+        max_daily_budget=optional_number("max_daily_budget"),
+        max_budget_change_percent=optional_number("max_budget_change_percent") or 50.0,
     )

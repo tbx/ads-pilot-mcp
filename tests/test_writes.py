@@ -26,6 +26,7 @@ class FakeAccount:
         self.keyword_status = "ENABLED"
         self.mobile_modifier = None
         self.schedule = [("MONDAY", 0, "ZERO", 6, "ZERO", 0.7)]
+        self.budget = {"micros": 40_000_000, "shared": False, "refs": 1}
 
     def client(self, login_customer_id=None):
         return self._client
@@ -45,6 +46,12 @@ class FakeAccount:
                      "ad_group.status": "ENABLED", "campaign.name": "Coffee DE - Search"}], False
         if "FROM ad_group_criterion WHERE ad_group.id" in query:
             return [{"ad_group_criterion.keyword.text": "Espresso Beans", "ad_group_criterion.keyword.match_type": "PHRASE"}], False
+        if "campaign_budget.amount_micros" in query:
+            return [{"campaign.name": "Coffee DE - Search", "campaign.status": "ENABLED",
+                     "campaign_budget.resource_name": f"customers/{customer_id}/campaignBudgets/777",
+                     "campaign_budget.amount_micros": self.budget["micros"],
+                     "campaign_budget.explicitly_shared": self.budget["shared"],
+                     "campaign_budget.reference_count": self.budget["refs"], "customer.currency_code": "EUR"}], False
         if "FROM campaign WHERE campaign.id" in query:
             return [{"campaign.resource_name": f"customers/{customer_id}/campaigns/555", "campaign.name": "Coffee DE - Search",
                      "campaign.status": "ENABLED", "campaign.advertising_channel_type": "SEARCH"}], False
@@ -82,7 +89,8 @@ def account():
 
 @pytest.fixture
 def server(account, tmp_path):
-    profile = Profile("fjord", {"client_id": "x"}, default_customer_id=DEMO, allowed_customer_ids=frozenset({DEMO}))
+    profile = Profile("fjord", {"client_id": "x"}, default_customer_id=DEMO, allowed_customer_ids=frozenset({DEMO}),
+                      max_daily_budget=100)
     return create_server(profile, account, log_folder=tmp_path)
 
 
@@ -172,12 +180,12 @@ def test_no_delete_or_remove_status(server):
         call(server, "set_status", object_type="keyword", ids=["111~222"], status="REMOVED")
 
 
-def test_no_tool_can_delete_or_touch_budgets(server):
+def test_no_tool_can_delete_or_touch_billing_or_users(server):
     async def names():
         async with Client(server) as client:
             return [t.name for t in await client.list_tools()]
     for name in asyncio.run(names()):
-        assert not any(word in name for word in ("delete", "remove", "budget", "billing", "user"))
+        assert not any(word in name for word in ("delete", "remove", "billing", "user", "account_setting"))
 
 
 def test_bad_id_format_is_refused(server):
@@ -270,3 +278,51 @@ def test_negative_keyword_is_refused(server, account, monkeypatch):
     with pytest.raises(ToolError, match="negative keyword"):
         call(server, "set_status", **PAUSE)
     assert account.mutations == []
+
+
+# ---- campaign budget -------------------------------------------------------
+
+def test_budget_dry_run_shows_old_and_new_in_currency(server, account):
+    result = call(server, "set_campaign_budget", campaign_id="555", daily_amount=50)
+    assert result["mode"] == "dry_run"
+    assert result["changes"][0]["old"] == "40.00 EUR" and result["changes"][0]["new"] == "50.00 EUR"
+    assert any("spend more" in w for w in result["warnings"])
+    assert account.mutations == [(True, "CampaignBudgetService", 1)]
+
+
+def test_budget_above_profile_cap_is_refused(server, account):
+    with pytest.raises(ToolError, match="above this profile's max_daily_budget"):
+        call(server, "set_campaign_budget", campaign_id="555", daily_amount=150)
+    assert account.mutations == []
+
+
+def test_budget_step_too_large_is_refused(server, account):
+    with pytest.raises(ToolError, match="at most 50%"):
+        call(server, "set_campaign_budget", campaign_id="555", daily_amount=90)
+    with pytest.raises(ToolError, match="at most 50%"):
+        call(server, "set_campaign_budget", campaign_id="555", daily_amount=10)
+    assert account.mutations == []
+
+
+def test_shared_budget_is_refused(server, account):
+    account.budget["shared"] = True
+    with pytest.raises(ToolError, match="shared budget"):
+        call(server, "set_campaign_budget", campaign_id="555", daily_amount=45)
+
+
+def test_budget_needs_a_cap_in_the_profile(account, tmp_path):
+    profile = Profile("fjord", {"client_id": "x"}, default_customer_id=DEMO, allowed_customer_ids=frozenset({DEMO}))
+    with pytest.raises(ToolError, match="Budget changes are off"):
+        call(create_server(profile, account, log_folder=tmp_path), "set_campaign_budget", campaign_id="555", daily_amount=45)
+
+
+def test_budget_zero_is_refused(server):
+    with pytest.raises(ToolError, match="pause the campaign"):
+        call(server, "set_campaign_budget", campaign_id="555", daily_amount=0)
+
+
+def test_budget_change_is_logged(server, account, tmp_path):
+    token = call(server, "set_campaign_budget", campaign_id="555", daily_amount=45)["confirm_token"]
+    call(server, "set_campaign_budget", campaign_id="555", daily_amount=45, confirm=True, confirm_token=token)
+    entry = json.loads((tmp_path / "changes.jsonl").read_text().splitlines()[-1])
+    assert entry["field"] == "daily_budget" and entry["old"] == "40.00 EUR" and entry["new"] == "45.00 EUR"

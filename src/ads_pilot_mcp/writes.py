@@ -12,7 +12,8 @@ Every write follows the same two calls:
    sent for real, and every change is written to logs/changes.jsonl.
 
 Guardrails: writes only for customer IDs in the profile's allowlist, no
-delete operations exist, no budgets, billing, users or account settings.
+delete operations exist, no billing, users or account settings. Campaign
+budgets only up to the profile's max_daily_budget and in limited steps.
 """
 
 from __future__ import annotations
@@ -501,7 +502,81 @@ def plan_schedule_bid(
     return plan
 
 
-# ---- 4. responsive search ad: final URL, headlines, descriptions -----------
+# ---- 4. campaign budget ---------------------------------------------------
+
+
+def plan_campaign_budget(
+    ads: Ads,
+    cid: str,
+    login: str | None,
+    campaign_id: str,
+    daily_amount: float,
+    max_daily_budget: float | None,
+    max_change_percent: float,
+) -> Plan:
+    """Change the daily budget of one campaign, within the profile's limits."""
+    if max_daily_budget is None:
+        raise WriteRefused(
+            "Budget changes are off for this profile. Add max_daily_budget (highest daily budget per "
+            "campaign, in account currency) to the profile file to allow them."
+        )
+    if not re.fullmatch(r"\d+", str(campaign_id)):
+        raise WriteRefused("campaign_id must be a number.")
+    new = round(float(daily_amount), 2)
+    if new <= 0:
+        raise WriteRefused("daily_amount must be greater than 0. To stop spending, pause the campaign instead.")
+    if new > max_daily_budget:
+        raise WriteRefused(
+            f"{new:.2f} is above this profile's max_daily_budget of {max_daily_budget:.2f}. "
+            "Raise the limit in the profile file if this is intended."
+        )
+
+    rows, _ = ads.search(
+        cid,
+        "SELECT campaign.name, campaign.status, campaign_budget.resource_name, campaign_budget.amount_micros, "
+        "campaign_budget.explicitly_shared, campaign_budget.reference_count, customer.currency_code "
+        f"FROM campaign WHERE campaign.id = {campaign_id}",
+        login_customer_id=login,
+        max_rows=1,
+    )
+    if not rows or rows[0]["campaign.status"] == "REMOVED":
+        raise WriteRefused(f"Campaign {campaign_id} not found (or removed) in account {format_customer_id(cid)}.")
+    row = rows[0]
+    if row.get("campaign_budget.explicitly_shared") or (row.get("campaign_budget.reference_count") or 1) > 1:
+        raise WriteRefused(
+            f"Campaign '{row['campaign.name']}' uses a shared budget. Changing it would affect other campaigns too, "
+            "so ads-pilot does not change shared budgets. Do this in Google Ads."
+        )
+
+    currency = row.get("customer.currency_code") or ""
+    old = round((row["campaign_budget.amount_micros"] or 0) / 1_000_000, 2)
+    plan = Plan("CampaignBudgetService", "mutate_campaign_budgets")
+    if old == new:
+        return plan
+    if old > 0:
+        change = (new - old) / old * 100
+        if abs(change) > max_change_percent:
+            raise WriteRefused(
+                f"From {old:.2f} to {new:.2f} {currency} is a change of {change:+.0f}%. This profile allows at most "
+                f"{max_change_percent:.0f}% per step (max_budget_change_percent). Change it in smaller steps."
+            )
+
+    client = ads.client(login)
+    op = client.get_type("CampaignBudgetOperation")
+    op.update.resource_name = row["campaign_budget.resource_name"]
+    op.update.amount_micros = int(round(new * 100)) * 10_000  # Google wants whole cents
+    client.copy_from(op.update_mask, _mask("amount_micros"))
+    plan.operations.append(op)
+    plan.changes.append(
+        Change(f"daily budget of campaign '{row['campaign.name']}'", "daily_budget",
+               f"{old:.2f} {currency}".strip(), f"{new:.2f} {currency}".strip(), row["campaign_budget.resource_name"])
+    )
+    if new > old:
+        plan.warnings.append("A higher budget means Google may spend more from today on.")
+    return plan
+
+
+# ---- 5. responsive search ad: final URL, headlines, descriptions -----------
 
 
 def plan_update_rsa(
