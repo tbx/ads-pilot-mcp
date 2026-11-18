@@ -97,6 +97,14 @@ Restart Claude Desktop. Then ask for example: *"Show my ads-pilot profile"* or *
 
 Claude Code: `claude mcp add ads-pilot-acme -e ADS_PILOT_PROFILE=acme -- uv --directory /full/path/to/ads-pilot-mcp run ads-pilot-mcp`
 
+## Landing page
+
+`site/` is the page at https://tbx.github.io/ads-pilot-mcp/, published by `.github/workflows/pages.yml` on every push that touches `site/`. After changing the hero headline, render the share image again:
+
+```bash
+uv run python scripts/og/render.py
+```
+
 ## Logs
 
 | File | Content |
