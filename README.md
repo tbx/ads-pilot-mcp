@@ -1,6 +1,6 @@
 # ads-pilot-mcp
 
-**Run Google Ads through Claude: small, local, auditable, with guardrails built for agencies.**
+**Steer Google Ads through Claude, with guardrails built for agencies.**
 
 ads-pilot-mcp lets Claude work in Google Ads accounts without touching the web interface: report, pause or enable keywords and ads, add keywords, adjust bids by device and time of day, refine ad copy.
 

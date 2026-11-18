@@ -6,10 +6,10 @@
 <meta name="color-scheme" content="dark">
 <meta name="theme-color" content="#101010">
 <title>ads-pilot</title>
-<meta name="description" content="Run Google Ads through Claude. A small, local MCP server with guardrails built for agencies: dry run first, allowlist per account, change log, no deleting.">
+<meta name="description" content="Steer Google Ads through Claude, with guardrails. A local MCP server for agencies: every change starts as a dry run and only goes live after your yes.">
 <meta name="author" content="Tobias Leingruber">
 <meta property="og:title" content="ads-pilot: Steer Google Ads through Claude, with guardrails">
-<meta property="og:description" content="A small, local MCP server for Google Ads. Every change is a dry run first. Only allowed accounts. Everything logged.">
+<meta property="og:description" content="A local MCP server for Google Ads. Every change starts as a dry run and only goes live after your yes.">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://tbx.github.io/ads-pilot-mcp/">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
@@ -226,8 +226,8 @@
   <section>
     <div class="wrap example">
       <div>
-        <h2><span lang="en">You ask. Claude checks. You decide.</span><span lang="de">Sie fragen. Claude prüft. Sie entscheiden.</span></h2>
-        <p class="lead"><span lang="en">Claude finds what to change and shows it with old and new value. Google validates it before anything happens. It goes live with your yes, and not before.</span><span lang="de">Claude findet, was zu ändern ist, und zeigt es mit altem und neuem Wert. Google prüft das, bevor etwas passiert. Live geht es mit Ihrem Ja, nicht vorher.</span></p>
+        <h2><span lang="en">Every change waits for your yes.</span><span lang="de">Jede Änderung wartet auf Ihr Ja.</span></h2>
+        <p class="lead"><span lang="en">Claude finds what to change and shows it with old and new value. Google validates every change before anything happens in your account.</span><span lang="de">Claude findet, was zu ändern ist, und zeigt es mit altem und neuem Wert. Google prüft jede Änderung, bevor in Ihrem Konto etwas passiert.</span></p>
       </div>
     <div class="chat" aria-label="Example conversation with a fictional coffee roaster">
       <div class="msg you">
@@ -296,14 +296,14 @@
     </div>
   </section>
 
-  <!-- Small. Local. Auditable. -->
+  <!-- Local -->
   <section>
     <div class="wrap">
-      <h2><span lang="en">Small. Local. Auditable.</span><span lang="de">Klein. Lokal. Nachprüfbar.</span></h2>
-      <p class="lead"><span lang="en">No service in between. ads-pilot runs on your own machine with your own Google Cloud project, and the whole codebase can be read in an hour.</span><span lang="de">Kein Dienst dazwischen. ads-pilot läuft auf Ihrem eigenen Rechner mit Ihrem eigenen Google-Cloud-Projekt, und der gesamte Code ist in einer Stunde gelesen.</span></p>
+      <h2><span lang="en">No service between you and Google.</span><span lang="de">Kein Dienst zwischen Ihnen und Google.</span></h2>
+      <p class="lead"><span lang="en">ads-pilot runs on your Mac with your own Google Cloud project. The whole codebase can be read in an hour.</span><span lang="de">ads-pilot läuft auf Ihrem Mac mit Ihrem eigenen Google-Cloud-Projekt. Der gesamte Code ist in einer Stunde gelesen.</span></p>
       <ol class="flow">
         <li><b>Claude</b><span lang="en">You ask in plain language.</span><span lang="de">Sie fragen in normaler Sprache.</span></li>
-        <li><b>ads-pilot</b><span lang="en">On your Mac. Checks, dry runs, logs.</span><span lang="de">Auf Ihrem Mac. Prüft, probt, protokolliert.</span></li>
+        <li><b>ads-pilot</b><span lang="en">Runs on your Mac and has Google validate every change first.</span><span lang="de">Läuft auf Ihrem Mac und lässt jede Änderung zuerst von Google prüfen.</span></li>
         <li class="you"><b><span lang="en">Your yes</span><span lang="de">Ihr Ja</span></b><span lang="en">Nothing goes live without it.</span><span lang="de">Ohne geht nichts live.</span></li>
         <li><b>Google Ads</b><span lang="en">Your Cloud project, your accounts.</span><span lang="de">Ihr Cloud-Projekt, Ihre Konten.</span></li>
       </ol>

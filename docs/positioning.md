@@ -4,7 +4,7 @@ As of 18 Nov 2026 · Deutsche Fassung: [positioning.de.md](positioning.de.md)
 
 ## In one sentence
 
-**Run Google Ads through Claude: small, local, auditable, with guardrails built for agencies.**
+**Steer Google Ads through Claude, with guardrails built for agencies.**
 
 ## Who it is for
 
@@ -80,7 +80,7 @@ ads-pilot-mcp deliberately chooses less scope, calm over speed, and protection a
 
 **GitHub description (one line)**
 
-> Local MCP server for Google Ads: small, auditable, with dry runs, an account allowlist and a change log.
+> Local MCP server for Google Ads with dry runs, an account allowlist and a change log.
 
 **Short intro for the README (English)**
 

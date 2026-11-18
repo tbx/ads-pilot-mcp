@@ -4,7 +4,7 @@ Stand: 18.11.2026 · English version: [positioning.md](positioning.md)
 
 ## In einem Satz
 
-**Google Ads über Claude betreuen: klein, lokal, nachprüfbar, mit Leitplanken für Agenturen.**
+**Google Ads über Claude lenken, mit Leitplanken für Agenturen.**
 
 ## Für wen
 
@@ -80,7 +80,7 @@ ads-pilot-mcp setzt bewusst auf weniger Umfang, auf Ruhe statt Tempo und auf Sch
 
 **GitHub-Beschreibung (Englisch, eine Zeile)**
 
-> Local MCP server for Google Ads: small, auditable, with dry runs, an account allowlist and a change log.
+> Local MCP server for Google Ads with dry runs, an account allowlist and a change log.
 
 **Mini-Intro für die README**
 
