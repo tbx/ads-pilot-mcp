@@ -1,0 +1,398 @@
+<!doctype html>
+<html lang="en" data-lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#101010">
+<title>ads-pilot</title>
+<meta name="description" content="Run Google Ads through Claude. A small, local MCP server with guardrails built for agencies: dry run first, allowlist per account, change log, no deleting.">
+<meta name="author" content="Tobias Leingruber">
+<meta property="og:title" content="ads-pilot: Google Ads through Claude, with guardrails">
+<meta property="og:description" content="A small, local MCP server for Google Ads. Every change is a dry run first. Only allowed accounts. Everything logged.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://tbx.github.io/ads-pilot-mcp/">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="preload" href="fonts/archivo-latin-wdth-normal.woff2" as="font" type="font/woff2" crossorigin>
+<style>
+  /* Archivo (SIL OFL, see fonts/ARCHIVO-OFL.txt), variable in width and weight, served locally. */
+  @font-face {
+    font-family: "Archivo Variable";
+    font-style: normal;
+    font-display: swap;
+    font-weight: 100 900;
+    font-stretch: 62% 125%;
+    src: url(fonts/archivo-latin-wdth-normal.woff2) format("woff2-variations");
+  }
+
+  /* Design tokens from leingruberconsulting.com, dark mode only. Green is the logo green. */
+  :root {
+    --bg: #101010;
+    --bg-soft: #1a1a1a;
+    --fg: #f3f1ee;
+    --fg-muted: #9d9995;
+    --line: #2a2a2a;
+    --brand: #12923a;
+    --brand-ink: #12923a;
+    --old: #ef7a6b;
+    --font: "Archivo Variable", "Archivo", -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    --display-width: 78%;
+    --display-tracking: -0.015em;
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0; background: var(--bg); color: var(--fg);
+    font-family: var(--font); font-size: 17px; line-height: 1.55;
+    -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
+  }
+  a { color: inherit; text-decoration: none; }
+  a:focus-visible, button:focus-visible { outline: 3px solid var(--brand); outline-offset: 3px; border-radius: 4px; }
+  h1, h2, h3 { margin: 0; text-wrap: balance; font-stretch: var(--display-width); letter-spacing: var(--display-tracking); font-weight: 800; }
+  p { margin: 0; }
+  .wrap { width: 100%; max-width: 1100px; margin-inline: auto; padding-inline: 24px; }
+  .nb { white-space: nowrap; }
+
+  /* Both languages are in the page, CSS shows one. */
+  html[data-lang="en"] [lang="de"], html[data-lang="de"] [lang="en"] { display: none !important; }
+
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 10px; padding: 14px 22px;
+    border-radius: 4px; font-weight: 600; font-size: 15px; line-height: 1; letter-spacing: -0.01em;
+    background: var(--fg); color: var(--bg); transition: transform .15s ease, background .15s ease;
+  }
+  .btn:hover { transform: translateY(-1px); }
+  .btn.brand { background: var(--brand); color: #fff; }
+  .btn.brand:hover { background: var(--brand-ink); }
+  .btn.ghost { background: transparent; color: var(--fg); box-shadow: inset 0 0 0 1px var(--line); }
+  .btn svg { width: 18px; height: 18px; }
+  .textlink { color: var(--brand-ink); font-weight: 600; }
+  .textlink:hover { text-decoration: underline; text-underline-offset: 3px; }
+
+  /* Header: like leingruberconsulting.com. Transparent and white over the hero photo, solid after scrolling. */
+  .nav { position: sticky; top: 0; z-index: 10; height: 64px; background: linear-gradient(to bottom, var(--bg) 0%, color-mix(in srgb, var(--bg) 85%, transparent) 100%); backdrop-filter: saturate(180%) blur(16px); -webkit-backdrop-filter: saturate(180%) blur(16px); transition: background .25s ease, color .25s ease; }
+  .nav .wrap { display: flex; align-items: center; justify-content: space-between; height: 100%; gap: 16px; }
+  .brandmark { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 22px; font-stretch: var(--display-width); letter-spacing: -0.01em; color: var(--fg); }
+  .brandmark img { width: 28px; height: 28px; }
+  .nav nav { display: flex; align-items: center; gap: 24px; font-size: 15px; font-weight: 500; }
+  .nav nav > a { color: var(--fg-muted); }
+  .nav nav > a:hover { color: var(--fg); }
+  .lang { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; letter-spacing: 0.08em; color: var(--fg-muted); white-space: nowrap; }
+  .lang button { border: 0; background: none; font: inherit; letter-spacing: inherit; color: inherit; padding: 4px 2px; cursor: pointer; }
+  .lang button:hover, html[data-lang="en"] .lang [data-set="en"], html[data-lang="de"] .lang [data-set="de"] { color: var(--fg); }
+  .lang span { opacity: .5; }
+  .nav:not(.is-scrolled) { background: transparent; backdrop-filter: none; -webkit-backdrop-filter: none; }
+  .nav:not(.is-scrolled) .brandmark, .nav:not(.is-scrolled) nav > a:hover { color: #fff; }
+  .nav:not(.is-scrolled) nav > a, .nav:not(.is-scrolled) .lang { color: rgba(255,255,255,.75); }
+  .nav:not(.is-scrolled) .lang button:hover, html[data-lang="en"] .nav:not(.is-scrolled) .lang [data-set="en"], html[data-lang="de"] .nav:not(.is-scrolled) .lang [data-set="de"] { color: #fff; }
+
+  /* Sections */
+  section { padding-block: clamp(64px, 9vw, 128px); }
+  section + section { border-top: 1px solid var(--line); }
+  h2 { font-size: clamp(34px, 5.2vw, 64px); line-height: 1.04; max-width: 20ch; }
+  .lead { margin-top: 28px; font-size: clamp(18px, 1.8vw, 22px); line-height: 1.45; max-width: 60ch; color: var(--fg-muted); }
+
+  /* Hero: full-bleed photo with the same gradients as leingruberconsulting.com, text bottom left in white. */
+  .hero { position: relative; min-height: 100lvh; margin-top: -64px; display: flex; align-items: flex-end; overflow: hidden; background: #101010; color: #fff; padding: 0; }
+  .hero::before { content: ""; position: absolute; inset: 0 0 auto 0; z-index: 1; height: 200px; pointer-events: none; background: linear-gradient(to bottom, rgba(10,10,10,.55), rgba(10,10,10,0)); }
+  .hero img.bg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 50% 38%; }
+  .hero::after { content: ""; position: absolute; inset: 0; background: linear-gradient(to top, rgba(10,10,10,.82) 0%, rgba(10,10,10,.45) 45%, rgba(10,10,10,.10) 100%); }
+  .hero .wrap { position: relative; z-index: 2; padding-block: clamp(80px, 10vw, 130px) calc(100lvh - 100svh + clamp(80px, 10vw, 130px)); }
+  .eyebrow { font-size: 15px; font-weight: 600; color: rgba(255,255,255,.75); margin-bottom: 18px; }
+  h1 { font-size: min(clamp(44px, 8vw, 104px), 11.2vw - 5px); line-height: 0.96; max-width: 16ch; color: #fff; }
+  .hero .lede { margin-top: 28px; font-size: clamp(18px, 2vw, 24px); line-height: 1.4; font-weight: 500; max-width: 46ch; color: rgba(255,255,255,.88); }
+  .cta { margin-top: 36px; display: flex; flex-wrap: wrap; gap: 12px; }
+  .hero .btn.ghost { color: #fff; box-shadow: inset 0 0 0 1px rgba(255,255,255,.45); }
+  @media (max-aspect-ratio: 1/1) { .hero img.bg { object-position: 12% 50%; } }
+  @media (max-width: 720px) { .hero img.bg { object-position: 43% 50%; } }
+
+  /* Example section: text left, conversation right */
+  .example { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); gap: 56px; align-items: center; }
+
+  /* Example conversation */
+  .chat { background: var(--bg-soft); border-radius: 4px; padding: 22px; font-size: 15px; line-height: 1.5; }
+  .msg { padding: 14px 16px; border-radius: 4px; }
+  .msg + .msg { margin-top: 10px; }
+  .msg.you { background: var(--fg); color: var(--bg); margin-left: 16%; }
+  .msg.claude { background: var(--bg); margin-right: 4%; }
+  .who { display: block; font-size: 13px; font-weight: 600; margin-bottom: 4px; opacity: .7; }
+  .ctx { font-family: var(--mono); font-size: 12px; font-weight: 400; }
+  .tag { display: inline-block; margin: 2px 0 4px; font-size: 13px; font-weight: 600; color: var(--brand-ink); }
+  .changes { width: 100%; border-collapse: collapse; margin: 4px 0 10px; font-size: 14.5px; }
+  .changes td { padding: 7px 0; border-top: 1px solid var(--line); }
+  .changes td:last-child { text-align: right; white-space: nowrap; font-family: var(--mono); font-size: 12px; padding-left: 12px; }
+  .o { color: var(--old); } .n { color: var(--brand-ink); font-weight: 700; }
+
+  /* Numbered rows, like the lists on leingruberconsulting.com */
+  .rows { list-style: none; margin: 56px 0 0; padding: 0; }
+  .rows li { display: grid; grid-template-columns: 2.4em minmax(0, 1fr) minmax(0, 1.4fr); gap: 0 32px; align-items: baseline; padding: 26px 0; }
+  .rows li + li { border-top: 1px solid var(--line); }
+  .rows li:first-child { padding-top: 0; }
+  .rows .idx { font-size: clamp(20px, 2.2vw, 26px); font-weight: 800; line-height: 1.25; color: var(--brand); }
+  .rows h3 { font-size: clamp(20px, 2.2vw, 26px); line-height: 1.25; font-stretch: 100%; font-weight: 600; letter-spacing: -0.01em; }
+  .rows p { color: var(--fg-muted); font-size: 16.5px; }
+
+  /* Tools */
+  .tools { list-style: none; margin: 56px 0 0; padding: 0; display: grid; grid-template-columns: 1fr 1fr; column-gap: 56px; }
+  .tools li { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; padding: 18px 0; border-top: 1px solid var(--line); font-size: clamp(17px, 1.7vw, 19px); font-weight: 500; }
+  .tools .k { font-size: 13px; font-weight: 600; color: var(--fg-muted); white-space: nowrap; }
+  .tools .k.w { color: var(--brand-ink); }
+
+  /* Flow */
+  .flow { list-style: none; margin: 56px 0 0; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 24px; }
+  .flow li { border-top: 3px solid var(--line); padding-top: 18px; }
+  .flow li.you { border-top-color: var(--brand); }
+  .flow b { display: block; font-size: clamp(20px, 2vw, 24px); font-weight: 800; font-stretch: var(--display-width); letter-spacing: -0.01em; }
+  .flow span { display: block; margin-top: 6px; color: var(--fg-muted); font-size: 16px; }
+
+  /* Code */
+  pre { margin: 48px 0 0; background: var(--bg-soft); border-radius: 4px; padding: 24px 26px; overflow-x: auto; font: 14.5px/1.75 var(--mono); }
+  pre .c { color: var(--fg-muted); }
+
+  /* Roadmap */
+  .road { list-style: none; margin: 56px 0 0; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 24px; }
+  .road li { border-top: 3px solid var(--line); padding-top: 18px; }
+  .road li.now { border-top-color: var(--brand); }
+  .road b { display: block; font-size: 18px; font-weight: 700; }
+  .road .now b::after { content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--brand); margin-left: 8px; vertical-align: middle; }
+  .road span { display: block; margin-top: 6px; color: var(--fg-muted); font-size: 16px; }
+
+  /* Final */
+  .final { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 40px 80px; align-items: end; }
+  .final .cta { margin-top: 0; }
+
+  footer { border-top: 1px solid var(--line); padding-block: 32px 48px; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px 32px; font-size: 14.5px; color: var(--fg-muted); }
+  footer a { color: var(--fg); font-weight: 600; }
+  footer a:hover { color: var(--brand-ink); }
+
+  @media (max-width: 860px) {
+    .example, .final { grid-template-columns: 1fr; }
+    .rows li { grid-template-columns: 2em minmax(0, 1fr); }
+    .rows p { grid-column: 2; margin-top: 6px; }
+    .tools { grid-template-columns: 1fr; }
+    .flow, .road { grid-template-columns: 1fr 1fr; gap: 32px 24px; }
+  }
+  @media (max-width: 560px) {
+    .wrap { padding-inline: 20px; }
+    .nav nav .hide-sm { display: none; }
+    .flow, .road { grid-template-columns: 1fr; }
+    .msg.you { margin-left: 8%; }
+    .msg.claude { margin-right: 0; }
+    .chat { padding: 14px; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+
+<header class="nav">
+  <div class="wrap">
+    <a class="brandmark" href="#top"><img src="logo.svg" alt="" width="28" height="28">ads-pilot</a>
+    <nav>
+      <a class="hide-sm" href="#guardrails"><span lang="en">Guardrails</span><span lang="de">Leitplanken</span></a>
+      <a class="hide-sm" href="#start"><span lang="en">Get started</span><span lang="de">Loslegen</span></a>
+      <a href="https://github.com/tbx/ads-pilot-mcp">GitHub</a>
+      <span class="lang" role="group" aria-label="Language"><button type="button" data-set="en">EN</button><span aria-hidden="true">/</span><button type="button" data-set="de">DE</button></span>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <!-- Hero -->
+  <section class="hero" id="top">
+    <img class="bg" src="hero.jpg" srcset="hero-1200.jpg 1200w, hero.jpg 2000w" sizes="100vw" alt="" width="2000" height="1619" fetchpriority="high">
+    <div class="wrap">
+      <p class="eyebrow"><span lang="en">MCP server for Google Ads</span><span lang="de">MCP-Server für Google Ads</span></p>
+      <h1>
+        <span lang="en">Google Ads through Claude. With guardrails.</span>
+        <span lang="de">Google Ads über Claude. Mit Leitplanken.</span>
+      </h1>
+      <p class="lede">
+        <span lang="en">Report, pause, add keywords, adjust bids, sharpen ad copy, right from the conversation. Every change starts as a dry run and only goes live after your yes.</span>
+        <span lang="de">Auswerten, pausieren, Keywords ergänzen, Gebote anpassen, Anzeigentexte schärfen, direkt im Gespräch. Jede Änderung startet als Probelauf und geht erst nach Ihrem Ja live.</span>
+      </p>
+      <div class="cta">
+        <a class="btn brand" href="https://github.com/tbx/ads-pilot-mcp">
+          <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+          <span lang="en">View on GitHub</span><span lang="de">Auf GitHub ansehen</span>
+        </a>
+        <a class="btn ghost" href="https://github.com/tbx/ads-pilot-mcp/blob/main/docs/setup.md"><span lang="en">Setup guide</span><span lang="de">Anleitung</span></a>
+      </div>
+    </div>
+  </section>
+
+  <!-- Example -->
+  <section>
+    <div class="wrap example">
+      <div>
+        <h2><span lang="en">You ask. Claude checks. You decide.</span><span lang="de">Sie fragen. Claude prüft. Sie entscheiden.</span></h2>
+        <p class="lead"><span lang="en">Claude finds what to change and shows it with old and new value. Google validates it before anything happens. It goes live with your yes, and not before.</span><span lang="de">Claude findet, was zu ändern ist, und zeigt es mit altem und neuem Wert. Google prüft das, bevor etwas passiert. Live geht es mit Ihrem Ja, nicht vorher.</span></p>
+      </div>
+    <div class="chat" aria-label="Example conversation with a fictional coffee roaster">
+      <div class="msg you">
+        <span class="who"><span lang="en">You</span><span lang="de">Sie</span></span>
+        <span lang="en">In "Coffee DE", pause the three keywords with the most clicks and no orders in the last 30 days.</span>
+        <span lang="de">Pausiere in „Coffee DE“ die drei Keywords mit den meisten Klicks und ohne Bestellung in den letzten 30 Tagen.</span>
+      </div>
+      <div class="msg claude">
+        <span class="who">Claude · <span class="ctx">fjord · 123-456-7890</span></span>
+        <span class="tag"><span lang="en">Dry run, nothing changed yet</span><span lang="de">Probelauf, noch nichts geändert</span></span>
+        <table class="changes">
+          <tr><td>espressobohnen günstig</td><td><span class="o">ENABLED</span> → <span class="n">PAUSED</span></td></tr>
+          <tr><td>kaffee gratis probe</td><td><span class="o">ENABLED</span> → <span class="n">PAUSED</span></td></tr>
+          <tr><td>kaffeemaschine test</td><td><span class="o">ENABLED</span> → <span class="n">PAUSED</span></td></tr>
+        </table>
+        <span lang="en">Validated by Google. Apply these 3 changes?</span>
+        <span lang="de">Von Google geprüft. Diese 3 Änderungen ausführen?</span>
+      </div>
+      <div class="msg you">
+        <span class="who"><span lang="en">You</span><span lang="de">Sie</span></span>
+        <span lang="en">Yes.</span><span lang="de">Ja.</span>
+      </div>
+      <div class="msg claude">
+        <span class="who">Claude · <span class="ctx">fjord · 123-456-7890</span></span>
+        <span lang="en">Done. 3 keywords paused and logged with old and new value.</span>
+        <span lang="de">Erledigt. 3 Keywords pausiert und mit altem und neuem Wert protokolliert.</span>
+      </div>
+    </div>
+    </div>
+  </section>
+
+  <!-- Guardrails -->
+  <section id="guardrails">
+    <div class="wrap">
+      <h2><span lang="en">Claude does the work. You keep control.</span><span lang="de">Claude erledigt die Arbeit. Sie behalten die Kontrolle.</span></h2>
+      <p class="lead">
+        <span lang="en">Through a manager account, one login reaches every client, and the Google Ads API will not stop a change in the wrong one. ads-pilot does.</span>
+        <span lang="de">Über ein Verwaltungskonto erreicht ein Login alle Kunden, und die Google-Ads-API hält eine Änderung im falschen Konto nicht auf. ads-pilot schon.</span>
+      </p>
+      <ol class="rows">
+        <li><span class="idx">1</span><h3><span lang="en">Dry run by default</span><span lang="de">Probelauf ist Standard</span></h3><p><span lang="en">Every change is validated by Google first and shown with old and new value. It runs only after your explicit yes.</span><span lang="de">Jede Änderung wird erst von Google geprüft und mit altem und neuem Wert gezeigt. Ausgeführt wird erst nach Ihrem ausdrücklichen Ja.</span></p></li>
+        <li><span class="idx">2</span><h3><span lang="en">Allowlist per account</span><span lang="de">Freigabeliste pro Konto</span></h3><p><span lang="en">Write access only to the accounts listed in the profile. Claude cannot change that list. Reading works everywhere.</span><span lang="de">Schreibzugriff nur auf die Konten im Profil. Claude kann diese Liste nicht ändern. Lesen geht überall.</span></p></li>
+        <li><span class="idx">3</span><h3><span lang="en">Always clear where</span><span lang="de">Immer klar, wo</span></h3><p><span lang="en">One profile per client, chosen at startup. Every answer names profile and account ID.</span><span lang="de">Ein Profil pro Kunde, beim Start festgelegt. Jede Antwort nennt Profil und Konto-ID.</span></p></li>
+        <li><span class="idx">4</span><h3><span lang="en">No deleting</span><span lang="de">Kein Löschen</span></h3><p><span lang="en">Pause and enable, nothing else. Everything can be undone.</span><span lang="de">Pausieren und aktivieren, sonst nichts. Alles lässt sich zurücknehmen.</span></p></li>
+        <li><span class="idx">5</span><h3><span lang="en">Hands off the sensitive parts</span><span lang="de">Finger weg vom Heiklen</span></h3><p><span lang="en">No budgets, billing, users or account settings. Not hidden, simply not built.</span><span lang="de">Keine Budgets, Abrechnung, Nutzer oder Kontoeinstellungen. Nicht versteckt, sondern gar nicht gebaut.</span></p></li>
+        <li><span class="idx">6</span><h3><span lang="en">Complete change log</span><span lang="de">Lückenloses Protokoll</span></h3><p><span lang="en">Time, profile, account, object, old and new value. Ready to show your client, easy to reverse by hand.</span><span lang="de">Zeit, Profil, Konto, Objekt, alter und neuer Wert. Bereit für den Kunden, leicht von Hand zurückzunehmen.</span></p></li>
+      </ol>
+    </div>
+  </section>
+
+  <!-- What it does -->
+  <section>
+    <div class="wrap">
+      <h2><span lang="en">The daily work, without the web interface.</span><span lang="de">Die tägliche Arbeit, ohne Weboberfläche.</span></h2>
+      <p class="lead"><span lang="en">A few tools that do exactly what account management needs, so Claude reliably picks the right one.</span><span lang="de">Wenige Werkzeuge, die genau das tun, was die Kontobetreuung braucht. So wählt Claude zuverlässig das richtige.</span></p>
+      <ul class="tools">
+        <li><span><span lang="en">Any report with a free query</span><span lang="de">Jede Auswertung per freier Abfrage</span></span><span class="k">read</span></li>
+        <li><span><span lang="en">Pause or enable keywords, ads, ad groups</span><span lang="de">Keywords, Anzeigen, Anzeigengruppen pausieren oder aktivieren</span></span><span class="k w">write</span></li>
+        <li><span><span lang="en">All accounts, incl. manager accounts</span><span lang="de">Alle Konten, auch unter Verwaltungskonten</span></span><span class="k">read</span></li>
+        <li><span><span lang="en">Add keywords</span><span lang="de">Keywords hinzufügen</span></span><span class="k w">write</span></li>
+        <li><span><span lang="en">Latest changes from the log</span><span lang="de">Letzte Änderungen aus dem Protokoll</span></span><span class="k">read</span></li>
+        <li><span><span lang="en">Bid adjustments per device</span><span lang="de">Gebotsanpassungen pro Gerät</span></span><span class="k w">write</span></li>
+        <li><span><span lang="en">Bid adjustments per time of day</span><span lang="de">Gebotsanpassungen nach Uhrzeit</span></span><span class="k w">write</span></li>
+        <li><span><span lang="en">Responsive search ads: headlines, descriptions, URL</span><span lang="de">Responsive Suchanzeigen: Titel, Texte, URL</span></span><span class="k w">write</span></li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- Small. Local. Auditable. -->
+  <section>
+    <div class="wrap">
+      <h2><span lang="en">Small. Local. Auditable.</span><span lang="de">Klein. Lokal. Nachprüfbar.</span></h2>
+      <p class="lead"><span lang="en">No service in between. ads-pilot runs on your own machine with your own Google Cloud project, and the whole codebase can be read in an hour.</span><span lang="de">Kein Dienst dazwischen. ads-pilot läuft auf Ihrem eigenen Rechner mit Ihrem eigenen Google-Cloud-Projekt, und der gesamte Code ist in einer Stunde gelesen.</span></p>
+      <ol class="flow">
+        <li><b>Claude</b><span lang="en">You ask in plain language.</span><span lang="de">Sie fragen in normaler Sprache.</span></li>
+        <li><b>ads-pilot</b><span lang="en">On your Mac. Checks, dry runs, logs.</span><span lang="de">Auf Ihrem Mac. Prüft, probt, protokolliert.</span></li>
+        <li class="you"><b><span lang="en">Your yes</span><span lang="de">Ihr Ja</span></b><span lang="en">Nothing goes live without it.</span><span lang="de">Ohne geht nichts live.</span></li>
+        <li><b>Google Ads</b><span lang="en">Your Cloud project, your accounts.</span><span lang="de">Ihr Cloud-Projekt, Ihre Konten.</span></li>
+      </ol>
+    </div>
+  </section>
+
+  <!-- Get started -->
+  <section id="start">
+    <div class="wrap">
+      <h2><span lang="en">Up and running in about 15 minutes.</span><span lang="de">In etwa 15 Minuten startklar.</span></h2>
+      <p class="lead">
+        <span lang="en">No developer token needed. The <a class="textlink" href="https://github.com/tbx/ads-pilot-mcp/blob/main/docs/setup.md">setup guide</a> walks you through the Google Cloud Console click by click.</span>
+        <span lang="de">Kein Developer Token nötig. Die <a class="textlink" href="https://github.com/tbx/ads-pilot-mcp/blob/main/docs/setup.md">Anleitung</a> führt Klick für Klick durch die Google Cloud Console.</span>
+      </p>
+<pre><span class="c"># install</span>
+git clone https://github.com/tbx/ads-pilot-mcp.git
+cd ads-pilot-mcp &amp;&amp; uv sync
+
+<span class="c"># one profile per client, sign in once</span>
+cp profiles/example.yaml profiles/fjord.yaml
+uv run ads-pilot-login fjord
+
+<span class="c"># test, changes nothing</span>
+ADS_PILOT_PROFILE=fjord uv run ads-pilot-check</pre>
+    </div>
+  </section>
+
+  <!-- Roadmap -->
+  <section>
+    <div class="wrap">
+      <h2><span lang="en">Where it is going.</span><span lang="de">Wohin es geht.</span></h2>
+      <p class="lead"><span lang="en">The guardrails stay the same in every version.</span><span lang="de">Die Leitplanken bleiben in jeder Version gleich.</span></p>
+      <ol class="road">
+        <li class="now"><b><span lang="en">Optimize</span><span lang="de">Optimieren</span></b><span lang="en">Reports and the daily changes. Available now.</span><span lang="de">Auswertungen und die täglichen Änderungen. Jetzt verfügbar.</span></li>
+        <li><b><span lang="en">Build</span><span lang="de">Aufbauen</span></b><span lang="en">Complete Search campaigns, started paused, budget capped.</span><span lang="de">Komplette Suchkampagnen, pausiert gestartet, Budget gedeckelt.</span></li>
+        <li><b><span lang="en">Extend</span><span lang="de">Erweitern</span></b><span lang="en">More campaign types, assets, keyword research.</span><span lang="de">Weitere Kampagnentypen, Assets, Keyword-Recherche.</span></li>
+        <li><b><span lang="en">Accompany</span><span lang="de">Begleiten</span></b><span lang="en">Recurring checks. Claude proposes, you approve.</span><span lang="de">Regelmäßige Prüfungen. Claude schlägt vor, Sie geben frei.</span></li>
+      </ol>
+    </div>
+  </section>
+
+  <!-- Open source -->
+  <section>
+    <div class="wrap final">
+      <div>
+        <h2><span lang="en">Open source.</span><span lang="de">Open Source.</span></h2>
+        <p class="lead">
+          <span lang="en">Licensed under the AGPL-3.0. Use it in your agency and for your clients. For closed products or hosted services, a commercial license is available from <a class="textlink" href="https://leingruberconsulting.com">Tobias Leingruber</a>.</span>
+          <span lang="de">Lizenziert unter der AGPL-3.0. Nutzbar in Ihrer Agentur und für Ihre Kunden. Für geschlossene Produkte oder gehostete Dienste gibt es eine kommerzielle Lizenz von <a class="textlink" href="https://leingruberconsulting.com">Tobias Leingruber</a>.</span>
+        </p>
+      </div>
+      <div class="cta"><a class="btn brand" href="https://github.com/tbx/ads-pilot-mcp"><span lang="en">Get ads-pilot on GitHub</span><span lang="de">ads-pilot auf GitHub</span></a></div>
+    </div>
+  </section>
+</main>
+
+<div class="wrap">
+  <footer>
+    <span><span lang="en">Made by</span><span lang="de">Von</span> Tobias Leingruber, <a href="https://leingruberconsulting.com">leingruberconsulting.com</a></span>
+    <span>
+      <span lang="en">Not affiliated with Google. Google Ads is a trademark of Google LLC. The example account is fictional.</span>
+      <span lang="de">Kein Angebot von Google. Google Ads ist eine Marke der Google LLC. Das Beispielkonto ist erfunden.</span>
+    </span>
+  </footer>
+</div>
+
+<script>
+  (function () {
+    var root = document.documentElement;
+    function set(lang) {
+      root.setAttribute("data-lang", lang);
+      root.setAttribute("lang", lang);
+      try { localStorage.setItem("ads-pilot-lang", lang); } catch (e) {}
+    }
+    var saved = null;
+    try { saved = localStorage.getItem("ads-pilot-lang"); } catch (e) {}
+    var fromUrl = new URLSearchParams(location.search).get("lang");
+    var browser = (navigator.language || "en").toLowerCase().indexOf("de") === 0 ? "de" : "en";
+    set(fromUrl === "de" || fromUrl === "en" ? fromUrl : saved || browser);
+    var nav = document.querySelector(".nav");
+    function onScroll() { nav.classList.toggle("is-scrolled", scrollY > 24); }
+    addEventListener("scroll", onScroll, { passive: true });
+    onScroll();
+    document.querySelectorAll(".lang button").forEach(function (b) {
+      b.addEventListener("click", function () { set(b.getAttribute("data-set")); });
+    });
+  })();
+</script>
+</body>
+</html>

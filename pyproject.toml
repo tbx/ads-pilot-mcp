@@ -1,0 +1,32 @@
+[project]
+name = "ads-pilot-mcp"
+version = "0.1.0"
+description = "MCP server for Google Ads with dry runs, an account allowlist and a change log"
+readme = "README.md"
+license = "AGPL-3.0-only"
+license-files = ["LICENSE"]
+authors = [{ name = "Tobias Leingruber" }]
+requires-python = ">=3.12"
+dependencies = [
+    "fastmcp>=4.2.1",
+    "google-ads>=35.1.0",
+    "google-auth-oauthlib>=1.5.0",
+    "pyyaml>=6",
+]
+
+[project.urls]
+Homepage = "https://github.com/tbx/ads-pilot-mcp"
+
+[project.scripts]
+ads-pilot-mcp = "ads_pilot_mcp.server:main"
+ads-pilot-check = "ads_pilot_mcp.check:main"
+ads-pilot-login = "ads_pilot_mcp.login:main"
+
+[build-system]
+requires = ["uv_build>=0.13.9,<0.14.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.2.0",
+]

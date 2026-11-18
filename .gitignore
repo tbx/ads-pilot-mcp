@@ -1,0 +1,13 @@
+# Credentials never go into git: only the example profile is tracked.
+profiles/*
+!profiles/example.yaml
+*.json
+
+logs/
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+dist/
+.DS_Store
+.claude/

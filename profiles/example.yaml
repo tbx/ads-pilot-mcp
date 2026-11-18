@@ -1,0 +1,14 @@
+# ads-pilot profile. Step-by-step guide: docs/setup.md
+# Copy to profiles/<name>.yaml. Stays on your computer, never goes to git.
+
+auth:                                # filled in by: uv run ads-pilot-login <name>
+  client_id: ""
+  client_secret: ""
+  refresh_token: ""                  # never share this value
+
+login_customer_id: ""                # manager account (MCC) ID, or "" if none
+
+default_customer_id: "123-456-7890"  # account used when none is named
+
+allowed_customer_ids:                # the ONLY accounts Claude may change
+  - "123-456-7890"
