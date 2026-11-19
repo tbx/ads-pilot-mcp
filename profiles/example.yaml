@@ -18,3 +18,6 @@ max_budget_change_percent: 50        # largest budget change per step, in percen
 max_negative_keywords_per_call: 50   # most negative keywords per call
 allow_campaign_status_change: true  # false = Claude may not pause or enable whole campaigns
 allow_location_changes: true        # false = Claude may not change location targeting
+max_target_change_percent: 30       # largest change of target CPA or ROAS per step, in percent
+max_target_cpa:                      # highest target CPA, empty = only the percent limit
+max_cpc:                             # highest max CPC for manual bids, empty = no cap

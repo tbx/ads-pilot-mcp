@@ -131,6 +131,30 @@ class Ads:
         results = [_resource_name_of(r) for i, r in enumerate(items) if i not in failures]
         return MutateResult(results=results, failures=failures)
 
+    def search_fields(self, query: str) -> list[dict[str, Any]]:
+        """Query GoogleAdsFieldService (field metadata of the API version in use)."""
+        with ads_errors(self.profile.name):
+            svc = self.client(None).get_service("GoogleAdsFieldService")
+            response = svc.search_google_ads_fields(request={"query": query, "page_size": 10000})
+            out = []
+            for f in response:
+                out.append({
+                    "name": f.name, "category": f.category.name, "data_type": f.data_type.name,
+                    "selectable": f.selectable, "filterable": f.filterable, "sortable": f.sortable,
+                    "is_repeated": f.is_repeated, "enum_values": list(f.enum_values),
+                    "selectable_with": list(f.selectable_with),
+                })
+        return out
+
+    def currency(self, customer_id: str, login_customer_id: str | None = None) -> str:
+        """Currency code of an account (cached)."""
+        cache = self.__dict__.setdefault("_currency", {})
+        if customer_id not in cache:
+            rows, _ = self.search(customer_id, "SELECT customer.currency_code FROM customer LIMIT 1",
+                                  login_customer_id=login_customer_id, max_rows=1)
+            cache[customer_id] = rows[0]["customer.currency_code"] if rows else ""
+        return cache[customer_id]
+
     def suggest_geo_targets(self, names: list[str], country_code: str | None = None,
                             locale: str = "en") -> dict[str, list[dict[str, Any]]]:
         """Look up geo target constants by name. Returns name -> candidates (id, name, canonical_name, type)."""

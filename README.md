@@ -12,34 +12,53 @@ Small and local: the server runs on your own machine with your own Google Cloud 
 
 ## What Claude can do
 
+**Read and report** (Google Ads API v26)
+
 | Tool | What it does |
 |---|---|
-| `show_profile` | Active profile, default account, accounts it may change |
+| `show_profile` | Active profile, default account, accounts it may change, all limits |
 | `list_accounts` | All Google Ads accounts the login can see, incl. clients under a manager account |
-| `run_gaql` | Any read-only query in Google Ads Query Language |
-| `recent_changes` | Latest executed changes from the change log |
+| `run_gaql` | Any read-only GAQL query; money also as normal amounts plus currency; suggests valid fields on errors |
+| `describe_resource` | Fields, segments, metrics and enum values of a resource, to write GAQL that works |
+| `campaign_overview` | Campaigns with type, status, budget, bid strategy, cost, clicks, conversions, cost per conversion |
+| `search_terms_report` | Search terms of Search and Performance Max, e.g. "cost over X without conversion" |
+| `pmax_channel_report` | Performance Max by channel (Search, YouTube, Discover, Maps, ...) with conversions per action |
+| `targeting_overview` | Locations, languages, networks, location assets per campaign; warns about campaigns running worldwide |
+| `recent_changes` | Latest executed changes from the change log, with their `change_id` |
+
+**Change** (every one: dry run first, then confirm)
+
+| Tool | What it does |
+|---|---|
 | `set_status` | Pause or enable keywords, ads, ad groups, campaigns and Performance Max asset groups |
 | `add_keywords` | Add keywords (exact, phrase, broad) to an ad group |
-| `set_device_bid_adjustment` | Bid adjustment per device, -100% to +900% |
-| `set_ad_schedule_bid_adjustment` | Bid adjustment per time window (ad schedule) |
-| `update_responsive_search_ad` | Final URL, headlines, descriptions of a responsive search ad |
-| `set_campaign_budget` | Daily budget of a campaign, within the profile's limits |
 | `add_negative_keywords` | Negative keywords on a campaign (incl. Performance Max), ad group, negative keyword list or the account-level list |
 | `remove_negative_keywords` | Remove negative keywords again, to undo mistakes |
 | `manage_negative_keyword_list` | Create a negative keyword list, attach it to a campaign or detach it |
-| `set_location_targeting` | Add, exclude or remove locations (by ID or name) and set presence or interest; warns before a campaign would run worldwide |
+| `set_campaign_budget` | Daily budget of a campaign, within the profile's limits |
+| `set_bidding_target` | Target CPA or target ROAS of the current strategy, within the profile's limits; never switches strategies |
+| `set_keyword_bid` | Max CPC of keywords or ad groups with manual CPC bidding |
+| `set_device_bid_adjustment` | Bid adjustment per device, -100% to +900% |
+| `set_ad_schedule_bid_adjustment` | Bid adjustment per time window (ad schedule) |
+| `set_location_targeting` | Add, exclude or remove locations (by ID or name), presence or interest; warns before a campaign would run worldwide |
 | `set_language_targeting` | Add or remove target languages (by ID, code or name) |
 | `set_network_settings` | Search partners and Display network on or off (Search campaigns only) |
+| `update_responsive_search_ad` | Final URL, headlines, descriptions of a responsive search ad |
+| `update_asset_group_text_assets` | Headlines, long headlines, descriptions, business name of a Performance Max asset group |
+| `set_search_themes` | Add or remove search themes of a Performance Max asset group |
+| `set_brand_exclusions` | Attach or detach brand exclusion lists of a Performance Max campaign |
+| `revert_change` | Put the old value of one logged change back, if nobody changed it in the meantime |
 
 ## Guardrails
 
 1. **Dry run by default.** A write tool first only validates with Google and returns every change with old and new value plus a `confirm_token`. It executes only when called again with `confirm=true` and that token. The token is valid for 15 minutes and no longer fits if the arguments or the account changed in between.
 2. **Allowlist per profile.** Writes go only to `allowed_customer_ids`. Claude cannot change that list.
 3. **One profile per login.** Chosen at startup. Every response names profile and customer ID.
-4. **No deleting.** Only pause and enable. The one exception: removing negative keywords and detaching negative keyword lists, which undoes mistakes. No billing, users or account settings.
+4. **No deleting.** Only pause and enable. Exceptions that undo mistakes or change targeting: removing negative keywords, locations, languages and search themes, detaching lists, unlinking replaced text assets (the assets stay). No billing, users or account settings.
 5. **Budget limits.** Campaign budgets only up to `max_daily_budget` and at most `max_budget_change_percent` per step (default 50%), set in the profile. No shared budgets.
 6. **Change log.** Every executed change goes to `logs/changes.jsonl` with a unique `change_id`, time, profile, account, tool, object type and ID, name, old and new value.
 7. **Partial failures are reported.** Where several items go in one call (e.g. negative keywords), good ones go through and each failing one is named with Google's error code and a short explanation.
+8. **Undo.** `revert_change` puts the old value back after a dry run, and refuses if someone changed the value since.
 
 ## Installation
 

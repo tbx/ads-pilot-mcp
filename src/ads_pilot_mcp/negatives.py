@@ -338,5 +338,5 @@ def plan_manage_negative_keyword_list(ads: Ads, cid: str, login: str | None, act
     plan.operations.append(op)
     plan.changes.append(Change(object=label, field="negative_keyword_list", old=old, new=new,
                                resource=camp["campaign.resource_name"], object_type="campaign_negative_keyword_list",
-                               object_id=campaign_id, name=lst["shared_set.name"]))
+                               object_id=campaign_id, name=f"{lst['shared_set.name']} ({shared_set_id})"))
     return plan

@@ -40,7 +40,7 @@ Für Agenturen kommt ein Risiko dazu, das kaum ein Werkzeug gezielt abfängt: **
 
 ## Was es kann
 
-**Version 1: Optimieren** (in Arbeit)
+**Version 1: Optimieren** (verfügbar)
 
 - Konten auflisten, freie Abfragen (GAQL)
 - Keywords, Anzeigen, Anzeigengruppen, Kampagnen und Performance-Max-Asset-Gruppen pausieren oder aktivieren
@@ -50,6 +50,10 @@ Für Agenturen kommt ein Risiko dazu, das kaum ein Werkzeug gezielt abfängt: **
 - Tagesbudgets von Kampagnen, innerhalb der Grenzen im Profil
 - Negative Keywords auf Kampagnen-, Anzeigengruppen-, Listen- und Kontoebene, auch für Performance Max
 - Standort- und Sprachausrichtung, Suchnetzwerk-Partner und Displaynetzwerk
+- Ziel-CPA und Ziel-ROAS, max. CPC bei manuellen Geboten
+- Performance Max: Text-Assets, Suchthemen, Marken-Ausschlüsse
+- Jede protokollierte Änderung mit einem Aufruf zurücknehmen
+- Fertige Berichte: Kampagnen, Suchbegriffe (auch Performance Max), Performance-Max-Kanäle, Ausrichtung
 
 **Ausblick**
 

@@ -68,6 +68,8 @@ class Plan:
     warnings: list[str] = field(default_factory=list)
     # True: one operation per change, good ones go through even if others fail.
     partial_failure: bool = False
+    # Extra fields written into every change log line of this plan (e.g. reverted_change_id).
+    log_extra: dict = field(default_factory=dict)
 
 
 # ---- the engine ------------------------------------------------------------
@@ -137,7 +139,7 @@ class Writer:
         self._check_token(tool, customer_id, plan, confirm_token, ttl)
         result = self._send(customer_id, login_customer_id, plan, validate_only=False)
         done = [c for i, c in enumerate(plan.changes) if i not in result.failures]
-        ids = self._log(tool, customer_id, done)
+        ids = self._log(tool, customer_id, done, plan.log_extra)
         out = {**where, "mode": "executed", "message": "Changes are live and logged.",
                "changes": [{**_public(c), "change_id": cid} for c, cid in zip(done, ids)], "warnings": plan.warnings}
         if result.failures:
@@ -165,6 +167,16 @@ class Writer:
                 "account changed in the meantime, or the server was restarted. Run the dry run again."
             )
 
+    def find_change(self, change_id: str) -> dict[str, Any] | None:
+        if not self.changelog.is_file():
+            return None
+        for line in self.changelog.read_text(encoding="utf-8").splitlines():
+            if line.strip() and f'"{change_id}"' in line:
+                entry = json.loads(line)
+                if entry.get("change_id") == change_id:
+                    return entry
+        return None
+
     def recent_changes(self, limit: int) -> list[dict[str, Any]]:
         if not self.changelog.is_file():
             return []
@@ -182,7 +194,7 @@ class Writer:
         digest = hmac.new(self._secret, payload.encode(), hashlib.sha256).hexdigest()[:20]
         return f"{issued}.{digest}" if issued else digest
 
-    def _log(self, tool: str, customer_id: str, changes: list[Change]) -> list[str]:
+    def _log(self, tool: str, customer_id: str, changes: list[Change], extra: dict | None = None) -> list[str]:
         """Append one line per change and return the change_ids."""
         self.changelog.parent.mkdir(parents=True, exist_ok=True)
         now = datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds")
@@ -205,6 +217,7 @@ class Writer:
                     "object_type": change.object_type or None,
                     "object_id": change.object_id or None,
                     "name": change.name or None,
+                    **(extra or {}),
                 }
                 f.write(json.dumps(entry, ensure_ascii=False) + "\n")
         return ids
@@ -689,7 +702,8 @@ def plan_campaign_budget(
     plan.operations.append(op)
     plan.changes.append(
         Change(f"daily budget of campaign '{row['campaign.name']}'", "daily_budget",
-               f"{old:.2f} {currency}".strip(), f"{new:.2f} {currency}".strip(), row["campaign_budget.resource_name"])
+               f"{old:.2f} {currency}".strip(), f"{new:.2f} {currency}".strip(), row["campaign_budget.resource_name"],
+               object_type="campaign_budget", object_id=str(campaign_id), name=row["campaign.name"])
     )
     if new > old:
         plan.warnings.append("A higher budget means Google may spend more from today on.")

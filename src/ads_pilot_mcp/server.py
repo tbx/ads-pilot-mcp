@@ -13,7 +13,8 @@ from fastmcp import FastMCP
 from fastmcp.exceptions import ToolError
 from pydantic import BaseModel
 
-from . import negatives, targeting, writes
+from . import bidding, negatives, pmax, reports, revert, targeting, writes
+from .ads import API_VERSION
 from .ads import Ads, AdsError
 from .config import ConfigError, Profile, format_customer_id, load_profile, log_dir
 from .writes import TOKEN_TTL_SECONDS, WriteRefused, Writer
@@ -44,6 +45,7 @@ only within the profile's max_daily_budget and max_budget_change_percent.
 Status = Literal["PAUSED", "ENABLED"]
 Day = Literal["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY", "SUNDAY"]
 NegLevel = Literal["campaign", "ad_group", "shared_list", "account"]
+DateRange = Literal["TODAY", "YESTERDAY", "LAST_7_DAYS", "LAST_14_DAYS", "LAST_30_DAYS", "THIS_MONTH", "LAST_MONTH"]
 
 
 class NegativeKeywordIn(BaseModel):
@@ -105,6 +107,9 @@ def create_server(profile: Profile, ads: Ads | None = None, log_folder: Path | N
             "max_negative_keywords_per_call": profile.max_negative_keywords_per_call,
             "allow_campaign_status_change": profile.allow_campaign_status_change,
             "allow_location_changes": profile.allow_location_changes,
+            "max_target_change_percent": profile.max_target_change_percent,
+            "max_target_cpa": profile.max_target_cpa,
+            "max_cpc": profile.max_cpc,
         }
 
     @mcp.tool(annotations={"readOnlyHint": True})
@@ -134,17 +139,114 @@ def create_server(profile: Profile, ads: Ads | None = None, log_folder: Path | N
         login_customer_id: str | None = None,
         max_rows: int = 200,
     ) -> dict[str, Any]:
-        """Run a read-only Google Ads Query Language (GAQL) query, e.g.
+        """Run a read-only Google Ads Query Language (GAQL) query against Google Ads API v26, e.g.
         "SELECT campaign.id, campaign.name, metrics.clicks FROM campaign WHERE segments.date DURING LAST_7_DAYS".
-        customer_id defaults to the profile's account. max_rows is capped at 1000."""
+        customer_id defaults to the profile's account. max_rows is capped at 1000. Every *_micros value also comes
+        as a normal amount (metrics.cost next to metrics.cost_micros), plus the account currency. On unknown fields
+        the error names similar valid ones; describe_resource lists all fields, segments and metrics."""
         cid, login = resolve(customer_id, login_customer_id, "run_gaql")
         max_rows = max(1, min(int(max_rows), MAX_ROWS_LIMIT))
         log.info("profile=%s customer=%s tool=run_gaql query=%r", profile.name, cid, " ".join(query.split()))
         try:
             rows, truncated = ads.search(cid, query, login_customer_id=login, max_rows=max_rows)
         except AdsError as e:
-            raise fail("run_gaql", cid, e) from e
-        return {**where(cid, login), "row_count": len(rows), "truncated": truncated, "rows": rows}
+            hints = reports.field_hints(ads, str(e))
+            raise fail("run_gaql", cid, AdsError(" ".join([str(e), *hints]))) from e
+        result = {**where(cid, login), "api_version": API_VERSION, "row_count": len(rows), "truncated": truncated,
+                  "rows": reports.add_money(rows)}
+        if any(k.endswith("_micros") for r in rows[:1] for k in r):
+            try:
+                result["currency"] = ads.currency(cid, login)
+            except AdsError:
+                pass
+        return result
+
+    def report(name, customer_id, login_customer_id, build) -> dict[str, Any]:
+        cid, login = resolve(customer_id, login_customer_id, name)
+        log.info("profile=%s customer=%s tool=%s", profile.name, cid, name)
+        try:
+            return {**where(cid, login), **build(cid, login)}
+        except (AdsError, reports.ReportError) as e:
+            raise fail(name, cid, e) from e
+
+    @mcp.tool(annotations={"readOnlyHint": True})
+    def describe_resource(resource: str, field: str | None = None) -> dict[str, Any]:
+        """List the fields of a GAQL resource (e.g. 'campaign', 'search_term_view', 'asset_group') in Google Ads
+        API v26, with the segments and metrics that can be selected with it and the valid values of enum fields.
+        With field (e.g. 'segments.ad_network_type'), return the valid values of that one field. Use it before
+        writing GAQL to avoid fields that do not exist (e.g. campaign.start_date) or invalid enum values."""
+        log.info("profile=%s customer=- tool=describe_resource resource=%s", profile.name, resource)
+        try:
+            return {"profile": profile.name, "customer_id": None, "api_version": API_VERSION,
+                    **reports.describe_resource(ads, resource, field)}
+        except (AdsError, reports.ReportError) as e:
+            raise fail("describe_resource", None, e) from e
+
+    @mcp.tool(annotations={"readOnlyHint": True})
+    def campaign_overview(
+        date_range: DateRange = "LAST_30_DAYS",
+        start_date: str | None = None,
+        end_date: str | None = None,
+        include_paused: bool = False,
+        customer_id: str | None = None,
+        login_customer_id: str | None = None,
+    ) -> dict[str, Any]:
+        """Active campaigns (optionally also paused) with type, status, daily budget, bid strategy, cost, clicks,
+        impressions, conversions, cost per conversion, conversion value and ROAS for a period, plus totals.
+        Period: date_range, or start_date and end_date (YYYY-MM-DD)."""
+        return report("campaign_overview", customer_id, login_customer_id,
+                      lambda cid, login: reports.campaign_overview(ads, cid, login, date_range, start_date, end_date,
+                                                                   include_paused))
+
+    @mcp.tool(annotations={"readOnlyHint": True})
+    def search_terms_report(
+        campaign_id: str | None = None,
+        date_range: DateRange = "LAST_30_DAYS",
+        start_date: str | None = None,
+        end_date: str | None = None,
+        sort_by: Literal["cost", "conversions", "clicks"] = "cost",
+        min_cost_without_conversion: float | None = None,
+        limit: int = 100,
+        customer_id: str | None = None,
+        login_customer_id: str | None = None,
+    ) -> dict[str, Any]:
+        """Search terms of Search campaigns (search_term_view) AND Performance Max (campaign_search_term_view)
+        in one list, with cost, clicks, conversions and cost per conversion. Optionally one campaign. Filter
+        min_cost_without_conversion: only terms that cost at least this much and brought no conversion
+        (candidates for negative keywords). Sorted by cost, conversions or clicks. limit up to 1000."""
+        return report("search_terms_report", customer_id, login_customer_id,
+                      lambda cid, login: reports.search_terms_report(ads, cid, login, campaign_id, date_range, start_date,
+                                                                     end_date, sort_by, min_cost_without_conversion, limit))
+
+    @mcp.tool(annotations={"readOnlyHint": True})
+    def pmax_channel_report(
+        campaign_id: str | None = None,
+        date_range: DateRange = "LAST_30_DAYS",
+        start_date: str | None = None,
+        end_date: str | None = None,
+        customer_id: str | None = None,
+        login_customer_id: str | None = None,
+    ) -> dict[str, Any]:
+        """Performance Max split by channel (Google Search, Search partners, YouTube, Discover, Maps, Display,
+        Gmail, ...) with cost, clicks, conversions and conversions per conversion action. A separate split by ad
+        format is included; for Performance Max the API usually only reports OTHER there, so it gives no split
+        such as local versus text ads."""
+        return report("pmax_channel_report", customer_id, login_customer_id,
+                      lambda cid, login: reports.pmax_channel_report(ads, cid, login, campaign_id, date_range,
+                                                                     start_date, end_date))
+
+    @mcp.tool(annotations={"readOnlyHint": True})
+    def targeting_overview(
+        campaign_id: str | None = None,
+        include_paused: bool = False,
+        customer_id: str | None = None,
+        login_customer_id: str | None = None,
+    ) -> dict[str, Any]:
+        """Per campaign: targeted and excluded locations, location option, languages, network settings and linked
+        location assets, plus account-level location assets. Warns about campaigns without location targeting
+        (they run worldwide) and campaigns targeting all languages."""
+        return report("targeting_overview", customer_id, login_customer_id,
+                      lambda cid, login: reports.targeting_overview(ads, cid, login, campaign_id, include_paused))
 
     @mcp.tool(annotations={"readOnlyHint": True})
     def recent_changes(limit: int = 20) -> dict[str, Any]:
@@ -427,6 +529,137 @@ def create_server(profile: Profile, ads: Ads | None = None, log_folder: Path | N
         return write("set_network_settings", customer_id, login_customer_id, confirm, confirm_token,
                      lambda cid, login: targeting.plan_network_settings(
                          ads, cid, login, campaign_id, search_partners, display_network))
+
+    # ---- Performance Max (priority 4 of the extension brief) ----
+
+    @mcp.tool(annotations=write_hints)
+    def update_asset_group_text_assets(
+        asset_group_id: str,
+        headlines: list[str] | None = None,
+        long_headlines: list[str] | None = None,
+        descriptions: list[str] | None = None,
+        business_name: str | None = None,
+        customer_id: str | None = None,
+        login_customer_id: str | None = None,
+        confirm: bool = False,
+        confirm_token: str | None = None,
+    ) -> dict[str, Any]:
+        """Change the text assets of a Performance Max asset group. Each given list REPLACES the current
+        advertiser texts of that kind, so include the texts you want to keep. Google limits, checked before sending:
+        headlines 3-15 (max 30 characters), long_headlines 1-5 (max 90), descriptions 2-5 (max 90),
+        business_name max 25 (stored on the campaign when brand guidelines are on).
+        Old texts are only unlinked, assets are never deleted; automatically created assets are not touched.
+        First call = dry run. Execute only after the user approved, with confirm=true and confirm_token.
+        The confirm_token is valid for 15 minutes."""
+        return write("update_asset_group_text_assets", customer_id, login_customer_id, confirm, confirm_token,
+                     lambda cid, login: pmax.plan_asset_group_text_assets(
+                         ads, cid, login, asset_group_id, headlines, long_headlines, descriptions, business_name))
+
+    @mcp.tool(annotations=write_hints)
+    def set_search_themes(
+        asset_group_id: str,
+        add: list[str] | None = None,
+        remove: list[str] | None = None,
+        customer_id: str | None = None,
+        login_customer_id: str | None = None,
+        confirm: bool = False,
+        confirm_token: str | None = None,
+    ) -> dict[str, Any]:
+        """Add or remove search themes (signals) of a Performance Max asset group. Google allows 50 per asset
+        group. Existing themes are skipped, unknown ones named. Good themes go through even if single ones fail.
+        First call = dry run. Execute only after the user approved, with confirm=true and confirm_token.
+        The confirm_token is valid for 15 minutes."""
+        return write("set_search_themes", customer_id, login_customer_id, confirm, confirm_token,
+                     lambda cid, login: pmax.plan_search_themes(ads, cid, login, asset_group_id, add or [], remove or []))
+
+    @mcp.tool(annotations=write_hints)
+    def set_brand_exclusions(
+        campaign_id: str,
+        shared_set_id: str,
+        action: Literal["attach", "detach"],
+        customer_id: str | None = None,
+        login_customer_id: str | None = None,
+        confirm: bool = False,
+        confirm_token: str | None = None,
+    ) -> dict[str, Any]:
+        """Attach a brand exclusion list (shared set of type BRANDS) to a Performance Max campaign, or detach it.
+        Lists are created in Google Ads; find them with run_gaql on shared_set WHERE shared_set.type = BRANDS.
+        First call = dry run. Execute only after the user approved, with confirm=true and confirm_token.
+        The confirm_token is valid for 15 minutes."""
+        return write("set_brand_exclusions", customer_id, login_customer_id, confirm, confirm_token,
+                     lambda cid, login: pmax.plan_brand_exclusions(ads, cid, login, campaign_id, shared_set_id, action))
+
+    # ---- bids (priority 5 of the extension brief) ----
+
+    @mcp.tool(annotations=write_hints)
+    def set_bidding_target(
+        campaign_id: str,
+        target_cpa: float | None = None,
+        target_roas_percent: float | None = None,
+        customer_id: str | None = None,
+        login_customer_id: str | None = None,
+        confirm: bool = False,
+        confirm_token: str | None = None,
+    ) -> dict[str, Any]:
+        """Change the target of the campaign's current smart bidding strategy: target_cpa in account currency
+        (Target CPA, or Maximize conversions with a target CPA) or target_roas_percent, e.g. 400 for 400%
+        (Target ROAS, or Maximize conversion value with a target ROAS). Never switches strategies, refuses campaigns
+        without such a target and portfolio (shared) strategies. Limits from the profile: max_target_change_percent
+        per step (default 30) and max_target_cpa.
+        First call = dry run. Execute only after the user approved, with confirm=true and confirm_token.
+        The confirm_token is valid for 15 minutes."""
+        return write("set_bidding_target", customer_id, login_customer_id, confirm, confirm_token,
+                     lambda cid, login: bidding.plan_bidding_target(
+                         ads, cid, login, campaign_id, target_cpa, target_roas_percent,
+                         profile.max_target_change_percent, profile.max_target_cpa))
+
+    @mcp.tool(annotations=write_hints)
+    def set_keyword_bid(
+        object_type: Literal["keyword", "ad_group"],
+        ids: list[str],
+        max_cpc: float,
+        customer_id: str | None = None,
+        login_customer_id: str | None = None,
+        confirm: bool = False,
+        confirm_token: str | None = None,
+    ) -> dict[str, Any]:
+        """Set the max CPC (in account currency) of keywords ("adGroupId~criterionId") or ad groups ("adGroupId"),
+        max 50 per call. Only for campaigns with manual CPC bidding. Limit from the profile: max_cpc.
+        First call = dry run. Execute only after the user approved, with confirm=true and confirm_token.
+        The confirm_token is valid for 15 minutes."""
+        return write("set_keyword_bid", customer_id, login_customer_id, confirm, confirm_token,
+                     lambda cid, login: bidding.plan_keyword_bid(ads, cid, login, object_type, ids, max_cpc,
+                                                                 profile.max_cpc))
+
+    # ---- undo (priority 6 of the extension brief) ----
+
+    @mcp.tool(annotations=write_hints)
+    def revert_change(
+        change_id: str,
+        confirm: bool = False,
+        confirm_token: str | None = None,
+    ) -> dict[str, Any]:
+        """Put the old value of one executed change back, using its change_id from recent_changes / the change log.
+        Works for the changes of this profile and runs in the same account. Before reverting, the current value
+        must still equal the logged new value; otherwise nothing happens and both values are shown. Changes that
+        would need a delete (new keywords, new time windows, new lists) are refused with a reason.
+        First call = dry run. Execute only after the user approved, with confirm=true and confirm_token.
+        The confirm_token is valid for 15 minutes."""
+        entry = writer.find_change(str(change_id).strip())
+        if not entry:
+            raise fail("revert_change", None, WriteRefused(f"No change with change_id '{change_id}' in the change log."))
+        if entry.get("profile") != profile.name:
+            raise fail("revert_change", None, WriteRefused(
+                f"Change {change_id} was made with profile '{entry.get('profile')}', not '{profile.name}'. "
+                "Revert it with that profile."))
+
+        def build(cid, login):
+            plan = revert.plan_revert(ads, cid, login, entry, profile)
+            plan.log_extra = {"reverted_change_id": entry["change_id"],
+                              "original_tool": entry.get("original_tool") or entry.get("tool")}
+            return plan
+
+        return write("revert_change", entry["customer_id"], None, confirm, confirm_token, build)
 
     return mcp
 

@@ -40,7 +40,7 @@ Agencies face one more risk that hardly any tool guards against on purpose: **a 
 
 ## What it does
 
-**Version 1: Optimize** (in progress)
+**Version 1: Optimize** (available)
 
 - List accounts, run free-form queries (GAQL)
 - Pause or enable keywords, ads, ad groups, campaigns and Performance Max asset groups
@@ -50,6 +50,10 @@ Agencies face one more risk that hardly any tool guards against on purpose: **a 
 - Daily campaign budgets, within the profile's limits
 - Negative keywords on campaign, ad group, list and account level, also for Performance Max
 - Location and language targeting, Search partners and Display network
+- Target CPA and target ROAS, max CPC for manual bids
+- Performance Max: text assets, search themes, brand exclusions
+- Undo any logged change with one call
+- Ready-made reports: campaigns, search terms (incl. Performance Max), Performance Max channels, targeting
 
 **Roadmap**
 

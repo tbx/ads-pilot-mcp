@@ -139,6 +139,9 @@ def test_tools_are_registered(profile):
         "set_ad_schedule_bid_adjustment", "update_responsive_search_ad", "set_campaign_budget",
         "add_negative_keywords", "remove_negative_keywords", "manage_negative_keyword_list",
         "set_location_targeting", "set_language_targeting", "set_network_settings",
+        "update_asset_group_text_assets", "set_search_themes", "set_brand_exclusions",
+        "set_bidding_target", "set_keyword_bid", "revert_change",
+        "describe_resource", "campaign_overview", "search_terms_report", "pmax_channel_report", "targeting_overview",
     }
 
 
