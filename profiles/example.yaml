@@ -15,3 +15,4 @@ allowed_customer_ids:                # the ONLY accounts Claude may change
 
 max_daily_budget: 100                # highest daily budget per campaign, in account currency
 max_budget_change_percent: 50        # largest budget change per step, in percent
+max_negative_keywords_per_call: 50   # most negative keywords per call

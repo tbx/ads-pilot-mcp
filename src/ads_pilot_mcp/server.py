@@ -13,10 +13,10 @@ from fastmcp import FastMCP
 from fastmcp.exceptions import ToolError
 from pydantic import BaseModel
 
-from . import writes
+from . import negatives, writes
 from .ads import Ads, AdsError
 from .config import ConfigError, Profile, format_customer_id, load_profile, log_dir
-from .writes import WriteRefused, Writer
+from .writes import TOKEN_TTL_SECONDS, WriteRefused, Writer
 
 log = logging.getLogger("ads_pilot")
 
@@ -36,12 +36,19 @@ Changing things always takes two calls:
 2. Only after the user explicitly says yes to exactly these changes, call the same tool
    again with the same arguments, confirm=true and the confirm_token.
 Never set confirm=true on your own initiative. Find IDs with run_gaql first.
-Deleting, billing, users and account settings are not available on purpose. Campaign budgets
+Deleting, billing, users and account settings are not available on purpose; the only removals are
+negative keywords and negative keyword list links (to undo mistakes). Campaign budgets
 only within the profile's max_daily_budget and max_budget_change_percent.
 """
 
 Status = Literal["PAUSED", "ENABLED"]
 Day = Literal["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY", "SUNDAY"]
+NegLevel = Literal["campaign", "ad_group", "shared_list", "account"]
+
+
+class NegativeKeywordIn(BaseModel):
+    text: str
+    match_type: Literal["EXACT", "PHRASE", "BROAD"]
 
 
 class KeywordIn(BaseModel):
@@ -95,6 +102,7 @@ def create_server(profile: Profile, ads: Ads | None = None, log_folder: Path | N
             "writable_customer_ids": sorted(format_customer_id(c) for c in profile.allowed_customer_ids),
             "max_daily_budget": profile.max_daily_budget,
             "max_budget_change_percent": profile.max_budget_change_percent,
+            "max_negative_keywords_per_call": profile.max_negative_keywords_per_call,
         }
 
     @mcp.tool(annotations={"readOnlyHint": True})
@@ -146,11 +154,11 @@ def create_server(profile: Profile, ads: Ads | None = None, log_folder: Path | N
 
     # ---- write tools: dry run first, execute only with confirm + confirm_token ----
 
-    def write(tool, customer_id, login_customer_id, confirm, confirm_token, build) -> dict[str, Any]:
+    def write(tool, customer_id, login_customer_id, confirm, confirm_token, build, ttl=None) -> dict[str, Any]:
         cid, login = resolve(customer_id, login_customer_id, tool)
         log.info("profile=%s customer=%s tool=%s %s", profile.name, cid, tool, "EXECUTE" if confirm else "dry run")
         try:
-            result = writer.run(tool, cid, login, lambda: build(cid, login), bool(confirm), confirm_token)
+            result = writer.run(tool, cid, login, lambda: build(cid, login), bool(confirm), confirm_token, ttl)
         except (WriteRefused, AdsError) as e:
             raise fail(tool, cid, e) from e
         if login:
@@ -268,6 +276,79 @@ def create_server(profile: Profile, ads: Ads | None = None, log_folder: Path | N
         First call = dry run. Execute only after the user approved, with confirm=true and confirm_token."""
         return write("update_responsive_search_ad", customer_id, login_customer_id, confirm, confirm_token,
                      lambda cid, login: writes.plan_update_rsa(ads, cid, login, ad_id, final_url, headlines, descriptions))
+
+    # ---- negative keywords (priority 1 of the extension brief) ----
+
+    @mcp.tool(annotations={**write_hints, "idempotentHint": False})
+    def add_negative_keywords(
+        level: NegLevel,
+        keywords: list[NegativeKeywordIn],
+        campaign_id: str | None = None,
+        ad_group_id: str | None = None,
+        shared_set_id: str | None = None,
+        customer_id: str | None = None,
+        login_customer_id: str | None = None,
+        confirm: bool = False,
+        confirm_token: str | None = None,
+    ) -> dict[str, Any]:
+        """Add negative keywords. level and the ID it needs:
+        campaign -> campaign_id (Search, Shopping and Performance Max),
+        ad_group -> ad_group_id (not Performance Max), shared_list -> shared_set_id of a negative keyword list,
+        account -> no ID (the account-level list, must already exist in Google Ads).
+        keywords: plain text plus match_type EXACT, PHRASE or BROAD. At most max_negative_keywords_per_call
+        per call (profile, default 50). Negatives that already exist are skipped and named. The dry run warns
+        when a negative would block active own keywords. Good keywords go through even if single ones fail.
+        First call = dry run. Execute only after the user approved, with confirm=true and confirm_token.
+        The confirm_token is valid for 15 minutes."""
+        items = [k.model_dump() for k in keywords]
+        return write("add_negative_keywords", customer_id, login_customer_id, confirm, confirm_token,
+                     lambda cid, login: negatives.plan_add_negative_keywords(
+                         ads, cid, login, level, campaign_id, ad_group_id, shared_set_id, items,
+                         profile.max_negative_keywords_per_call), ttl=TOKEN_TTL_SECONDS)
+
+    @mcp.tool(annotations={**write_hints, "destructiveHint": True})
+    def remove_negative_keywords(
+        level: NegLevel,
+        keywords: list[NegativeKeywordIn],
+        campaign_id: str | None = None,
+        ad_group_id: str | None = None,
+        shared_set_id: str | None = None,
+        customer_id: str | None = None,
+        login_customer_id: str | None = None,
+        confirm: bool = False,
+        confirm_token: str | None = None,
+    ) -> dict[str, Any]:
+        """Remove negative keywords again, e.g. to undo a mistake. Same levels and IDs as add_negative_keywords;
+        each keyword is matched by text and match_type. Only negative keywords can be removed, never normal ones.
+        Keywords that are not negative at that level are named and skipped. At most max_negative_keywords_per_call.
+        First call = dry run. Execute only after the user approved, with confirm=true and confirm_token.
+        The confirm_token is valid for 15 minutes."""
+        items = [k.model_dump() for k in keywords]
+        return write("remove_negative_keywords", customer_id, login_customer_id, confirm, confirm_token,
+                     lambda cid, login: negatives.plan_remove_negative_keywords(
+                         ads, cid, login, level, campaign_id, ad_group_id, shared_set_id, items,
+                         profile.max_negative_keywords_per_call), ttl=TOKEN_TTL_SECONDS)
+
+    @mcp.tool(annotations={**write_hints, "idempotentHint": False})
+    def manage_negative_keyword_list(
+        action: Literal["create", "attach", "detach"],
+        name: str | None = None,
+        shared_set_id: str | None = None,
+        campaign_id: str | None = None,
+        customer_id: str | None = None,
+        login_customer_id: str | None = None,
+        confirm: bool = False,
+        confirm_token: str | None = None,
+    ) -> dict[str, Any]:
+        """Manage negative keyword lists (shared sets of type NEGATIVE_KEYWORDS).
+        create -> name: creates an empty list. attach -> shared_set_id + campaign_id: the list's negatives apply
+        to that campaign (also Performance Max). detach -> shared_set_id + campaign_id: removes only the link,
+        the list itself stays. Lists are never deleted. Find list IDs with run_gaql on shared_set.
+        First call = dry run. Execute only after the user approved, with confirm=true and confirm_token.
+        The confirm_token is valid for 15 minutes."""
+        return write("manage_negative_keyword_list", customer_id, login_customer_id, confirm, confirm_token,
+                     lambda cid, login: negatives.plan_manage_negative_keyword_list(
+                         ads, cid, login, action, name, shared_set_id, campaign_id), ttl=TOKEN_TTL_SECONDS)
 
     return mcp
 

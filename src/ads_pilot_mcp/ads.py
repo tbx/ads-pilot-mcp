@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass, field
 from typing import Any
 
 import proto
@@ -22,6 +23,34 @@ logging.getLogger("google.ads.googleads.client").setLevel(logging.CRITICAL)
 
 class AdsError(Exception):
     """A Google Ads API error, reduced to what a human needs to read."""
+
+
+@dataclass
+class MutateResult:
+    """Resource names of the operations that worked, and the error per failed operation index."""
+
+    results: list[str] = field(default_factory=list)
+    failures: dict[int, str] = field(default_factory=dict)
+
+
+# Short explanations in plain words, matched against the error code name.
+HINTS = (
+    ("DUPLICATE", "It already exists."),
+    ("CAMPAIGN_TYPE", "Google does not allow this for this campaign type."),
+    ("NOT_SUPPORTED", "Google does not support this for this object or campaign type."),
+    ("NOT_ALLOWED", "Google does not allow this here."),
+    ("POLICY", "It violates a Google Ads policy."),
+    ("INVALID_CHARACTERS", "The text contains characters Google does not accept."),
+    ("TOO_LONG", "The text is too long."),
+    ("TOO_MANY", "A Google limit on the number of items is reached."),
+    ("REMOVED", "The object or its parent is removed."),
+    ("PERMISSION", "The signed-in Google account lacks the rights for this."),
+    ("NOT_FOUND", "The object does not exist (any more)."),
+)
+
+
+def explain(code: str) -> str:
+    return next((hint for key, hint in HINTS if key in code), "")
 
 
 class Ads:
@@ -80,14 +109,23 @@ class Ads:
         operations: list,
         login_customer_id: str | None = None,
         validate_only: bool = True,
-    ) -> list[str]:
-        """Send operations in one atomic request. validate_only=True changes nothing."""
+        partial_failure: bool = False,
+    ) -> MutateResult:
+        """Send operations in one request. validate_only=True changes nothing.
+
+        Without partial_failure the request is atomic (all or nothing). With it, good
+        operations go through and the failures are reported per operation index.
+        """
         with ads_errors(self.profile.name):
-            svc = self.client(login_customer_id).get_service(service)
-            response = getattr(svc, method)(
-                request={"customer_id": customer_id, "operations": operations, "validate_only": validate_only}
-            )
-        return [r.resource_name for r in response.results]
+            client = self.client(login_customer_id)
+            svc = client.get_service(service)
+            request = {"customer_id": customer_id, "operations": operations, "validate_only": validate_only}
+            if partial_failure:
+                request["partial_failure"] = True
+            response = getattr(svc, method)(request=request)
+        failures = _partial_failures(client, response) if partial_failure else {}
+        results = [r.resource_name for i, r in enumerate(response.results) if i not in failures]
+        return MutateResult(results=results, failures=failures)
 
 
 class ads_errors:
@@ -103,9 +141,7 @@ class ads_errors:
         if isinstance(exc, GoogleAdsException):
             messages = []
             for error in exc.failure.errors:
-                code = next((f"{k}={v}" for k, v in _error_code(error).items()), "")
-                field = ".".join(e.field_name for e in error.location.field_path_elements)
-                messages.append(" | ".join(p for p in (code, error.message, field and f"field: {field}") if p))
+                messages.append(_describe_error(error))
             raise AdsError(f"Google Ads API error (request_id {exc.request_id}): " + "; ".join(messages)) from exc
         if isinstance(exc, GoogleAuthError):
             if "invalid_grant" in str(exc):
@@ -115,6 +151,30 @@ class ads_errors:
                 ) from exc
             raise AdsError(f"Google sign-in failed, check the credentials in the profile: {exc}") from exc
         return False
+
+
+def _describe_error(error) -> str:
+    """'criterion_error=KEYWORD_HAS_INVALID_CHARS | message | field: ... | plain-word hint'."""
+    code = next((f"{k}={v}" for k, v in _error_code(error).items()), "")
+    field = ".".join(e.field_name for e in error.location.field_path_elements)
+    hint = explain(code)
+    return " | ".join(p for p in (code, error.message, field and f"field: {field}", hint) if p)
+
+
+def _partial_failures(client, response) -> dict[int, str]:
+    """Map operation index -> readable error from a partial_failure response."""
+    status = response.partial_failure_error
+    if not status or not getattr(status, "code", 0):
+        return {}
+    failure_cls = type(client.get_type("GoogleAdsFailure"))
+    failures: dict[int, str] = {}
+    for detail in status.details:
+        failure = failure_cls.deserialize(detail.value)
+        for error in failure.errors:
+            index = next((e.index for e in error.location.field_path_elements if e.field_name == "operations"), -1)
+            message = _describe_error(error)
+            failures[index] = f"{failures[index]}; {message}" if index in failures else message
+    return failures
 
 
 def _error_code(error) -> dict[str, str]:

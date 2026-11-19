@@ -23,6 +23,8 @@ import hmac
 import json
 import re
 import secrets
+import time
+import uuid
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -30,10 +32,11 @@ from typing import Any, Callable
 
 from google.protobuf.field_mask_pb2 import FieldMask
 
-from .ads import Ads
+from .ads import Ads, MutateResult
 from .config import Profile, format_customer_id
 
 MAX_ITEMS = 50
+TOKEN_TTL_SECONDS = 15 * 60  # confirm tokens of tools that use expiry are valid this long
 HEADLINE_LIMITS = (3, 15, 30)  # min count, max count, max characters
 DESCRIPTION_LIMITS = (2, 4, 90)
 DAYS = ("MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY", "SUNDAY")
@@ -51,6 +54,9 @@ class Change:
     old: Any
     new: Any
     resource: str
+    object_type: str = ""  # e.g. "campaign_negative_keyword"
+    object_id: str = ""  # e.g. the campaign or shared set ID the change belongs to
+    name: str = ""  # e.g. the keyword text
 
 
 @dataclass
@@ -60,6 +66,8 @@ class Plan:
     operations: list = field(default_factory=list)
     changes: list[Change] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
+    # True: one operation per change, good ones go through even if others fail.
+    partial_failure: bool = False
 
 
 # ---- the engine ------------------------------------------------------------
@@ -80,7 +88,9 @@ class Writer:
         build: Callable[[], Plan],
         confirm: bool,
         confirm_token: str | None,
+        ttl: int | None = None,
     ) -> dict[str, Any]:
+        """Dry run or execute one plan. With ttl, the confirm_token expires after ttl seconds."""
         where = {"profile": self.profile.name, "customer_id": format_customer_id(customer_id)}
         if not self.profile.is_write_allowed(customer_id):
             raise WriteRefused(
@@ -93,34 +103,67 @@ class Writer:
             return {**where, "mode": "no_change", "message": "Everything already has the requested value.",
                     "warnings": plan.warnings}
 
-        token = self._token(tool, customer_id, plan)
+        if plan.partial_failure and len(plan.operations) != len(plan.changes):
+            raise ValueError("partial_failure plans need exactly one operation per change")
         changes = [_public(c) for c in plan.changes]
 
         if not confirm:
-            self.ads.mutate(customer_id, plan.service, plan.method, plan.operations, login_customer_id, validate_only=True)
-            return {
+            result = self._send(customer_id, login_customer_id, plan, validate_only=True)
+            if plan.partial_failure and result.failures and len(result.failures) == len(plan.changes):
+                raise WriteRefused("Google rejects every change: " + "; ".join(sorted(set(result.failures.values()))))
+            for index, error in result.failures.items():
+                if 0 <= index < len(changes):
+                    changes[index]["would_fail"] = error
+            issued = int(time.time()) if ttl else None
+            out = {
                 **where,
                 "mode": "dry_run",
                 "message": "Validated by Google. Nothing was changed.",
                 "changes": changes,
                 "warnings": plan.warnings,
-                "confirm_token": token,
+                "confirm_token": self._token(tool, customer_id, plan, issued),
                 "next_step": (
                     "Show these changes to the user. Only after the user explicitly approves them, call this "
                     "tool again with exactly the same arguments plus confirm=true and this confirm_token."
                 ),
             }
+            if ttl:
+                out["confirm_token_valid_minutes"] = ttl // 60
+            if result.failures:
+                out["message"] = (f"Validated by Google. {len(result.failures)} of {len(changes)} changes would fail "
+                                  "(see would_fail); the others would go through. Nothing was changed.")
+            return out
 
-        if not confirm_token or not hmac.compare_digest(confirm_token, token):
+        self._check_token(tool, customer_id, plan, confirm_token, ttl)
+        result = self._send(customer_id, login_customer_id, plan, validate_only=False)
+        done = [c for i, c in enumerate(plan.changes) if i not in result.failures]
+        ids = self._log(tool, customer_id, done)
+        out = {**where, "mode": "executed", "message": "Changes are live and logged.",
+               "changes": [{**_public(c), "change_id": cid} for c, cid in zip(done, ids)], "warnings": plan.warnings}
+        if result.failures:
+            out["mode"] = "partially_executed"
+            out["message"] = f"{len(done)} of {len(plan.changes)} changes are live and logged. The others failed."
+            out["failed"] = [{**_public(plan.changes[i]), "error": e} for i, e in sorted(result.failures.items())
+                             if 0 <= i < len(plan.changes)]
+        return out
+
+    def _send(self, customer_id: str, login: str | None, plan: Plan, validate_only: bool) -> MutateResult:
+        result = self.ads.mutate(customer_id, plan.service, plan.method, plan.operations, login,
+                                 validate_only=validate_only, partial_failure=plan.partial_failure)
+        return result if isinstance(result, MutateResult) else MutateResult(results=list(result or []))
+
+    def _check_token(self, tool: str, customer_id: str, plan: Plan, token: str | None, ttl: int | None) -> None:
+        issued = None
+        if ttl and token and "." in token:
+            stamp, _ = token.split(".", 1)
+            issued = int(stamp) if stamp.isdigit() else None
+            if issued is not None and time.time() - issued > ttl:
+                raise WriteRefused(f"confirm_token expired (valid {ttl // 60} minutes). Run the dry run again.")
+        if not token or not hmac.compare_digest(token, self._token(tool, customer_id, plan, issued)):
             raise WriteRefused(
                 "confirm_token missing or not matching. Either the arguments differ from the dry run, the "
                 "account changed in the meantime, or the server was restarted. Run the dry run again."
             )
-
-        self.ads.mutate(customer_id, plan.service, plan.method, plan.operations, login_customer_id, validate_only=False)
-        self._log(tool, customer_id, plan.changes)
-        return {**where, "mode": "executed", "message": "Changes are live and logged.", "changes": changes,
-                "warnings": plan.warnings}
 
     def recent_changes(self, limit: int) -> list[dict[str, Any]]:
         if not self.changelog.is_file():
@@ -128,20 +171,28 @@ class Writer:
         lines = self.changelog.read_text(encoding="utf-8").splitlines()[-limit:]
         return [json.loads(line) for line in reversed(lines) if line.strip()]
 
-    def _token(self, tool: str, customer_id: str, plan: Plan) -> str:
+    def _token(self, tool: str, customer_id: str, plan: Plan, issued: int | None = None) -> str:
+        """HMAC over profile, account, tool and planned changes. With issued, the time is part of it."""
         payload = json.dumps(
-            {"profile": self.profile.name, "customer": customer_id, "tool": tool, "changes": [asdict(c) for c in plan.changes]},
+            {"profile": self.profile.name, "customer": customer_id, "tool": tool,
+             "changes": [asdict(c) for c in plan.changes], "issued": issued},
             sort_keys=True,
             default=str,
         )
-        return hmac.new(self._secret, payload.encode(), hashlib.sha256).hexdigest()[:20]
+        digest = hmac.new(self._secret, payload.encode(), hashlib.sha256).hexdigest()[:20]
+        return f"{issued}.{digest}" if issued else digest
 
-    def _log(self, tool: str, customer_id: str, changes: list[Change]) -> None:
+    def _log(self, tool: str, customer_id: str, changes: list[Change]) -> list[str]:
+        """Append one line per change and return the change_ids."""
         self.changelog.parent.mkdir(parents=True, exist_ok=True)
         now = datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds")
+        ids = []
         with self.changelog.open("a", encoding="utf-8") as f:
             for change in changes:
+                change_id = uuid.uuid4().hex[:12]
+                ids.append(change_id)
                 entry = {
+                    "change_id": change_id,
                     "time": now,
                     "profile": self.profile.name,
                     "customer_id": format_customer_id(customer_id),
@@ -151,8 +202,12 @@ class Writer:
                     "old": change.old,
                     "new": change.new,
                     "resource": change.resource,
+                    "object_type": change.object_type or None,
+                    "object_id": change.object_id or None,
+                    "name": change.name or None,
                 }
                 f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+        return ids
 
 
 def _public(change: Change) -> dict[str, Any]:

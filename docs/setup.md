@@ -127,6 +127,7 @@ Open `profiles/acme.yaml` in a text editor (e.g. TextEdit). Account IDs are show
 | `login_customer_id` | Only if you reach the account through a manager account (MCC): the manager account's ID. Otherwise leave `""`. |
 | `max_daily_budget` | The highest daily budget Claude may set for a campaign, in the account currency. Remove the line to switch budget changes off. |
 | `max_budget_change_percent` | The largest budget change per step, in percent (default 50). |
+| `max_negative_keywords_per_call` | The most negative keywords Claude may add or remove in one call (default 50). |
 
 **Manager account or not?** In Google Ads, click the account name at the top right. If you first see a manager account with the client accounts below it, you use an MCC. Not sure? Leave it empty; the test in step 5 lists every account your login can see.
 

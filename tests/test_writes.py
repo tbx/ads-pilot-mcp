@@ -75,7 +75,8 @@ class FakeAccount:
             }], False
         raise AssertionError(f"unexpected query: {query}")
 
-    def mutate(self, customer_id, service, method, operations, login_customer_id=None, validate_only=True):
+    def mutate(self, customer_id, service, method, operations, login_customer_id=None, validate_only=True,
+               partial_failure=False):
         self.mutations.append((validate_only, service, len(operations)))
         if not validate_only and service == "AdGroupCriterionService" and operations[0].update.status:
             self.keyword_status = operations[0].update.status.name
@@ -185,7 +186,9 @@ def test_no_tool_can_delete_or_touch_billing_or_users(server):
         async with Client(server) as client:
             return [t.name for t in await client.list_tools()]
     for name in asyncio.run(names()):
-        assert not any(word in name for word in ("delete", "remove", "billing", "user", "account_setting"))
+        assert not any(word in name for word in ("delete", "billing", "user", "account_setting"))
+        # The only removing tool: it undoes negative keywords (explicitly allowed by the brief).
+        assert "remove" not in name or name == "remove_negative_keywords"
 
 
 def test_bad_id_format_is_refused(server):

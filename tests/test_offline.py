@@ -62,7 +62,7 @@ def test_customer_id_formats():
     assert normalize_customer_id("123-456-7890") == "1234567890"
     assert normalize_customer_id(1234567890) == "1234567890"
     with pytest.raises(ConfigError):
-        normalize_customer_id("808-686")
+        normalize_customer_id("123-456")
 
 
 def test_profile_loads(profile):
@@ -137,6 +137,7 @@ def test_tools_are_registered(profile):
         "show_profile", "list_accounts", "run_gaql", "recent_changes",
         "set_status", "add_keywords", "set_device_bid_adjustment",
         "set_ad_schedule_bid_adjustment", "update_responsive_search_ad", "set_campaign_budget",
+        "add_negative_keywords", "remove_negative_keywords", "manage_negative_keyword_list",
     }
 
 

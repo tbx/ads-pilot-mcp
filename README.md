@@ -24,15 +24,19 @@ Small and local: the server runs on your own machine with your own Google Cloud 
 | `set_ad_schedule_bid_adjustment` | Bid adjustment per time window (ad schedule) |
 | `update_responsive_search_ad` | Final URL, headlines, descriptions of a responsive search ad |
 | `set_campaign_budget` | Daily budget of a campaign, within the profile's limits |
+| `add_negative_keywords` | Negative keywords on a campaign (incl. Performance Max), ad group, negative keyword list or the account-level list |
+| `remove_negative_keywords` | Remove negative keywords again, to undo mistakes |
+| `manage_negative_keyword_list` | Create a negative keyword list, attach it to a campaign or detach it |
 
 ## Guardrails
 
 1. **Dry run by default.** A write tool first only validates with Google and returns every change with old and new value plus a `confirm_token`. It executes only when called again with `confirm=true` and that token. The token no longer fits if the arguments or the account changed in between.
 2. **Allowlist per profile.** Writes go only to `allowed_customer_ids`. Claude cannot change that list.
 3. **One profile per login.** Chosen at startup. Every response names profile and customer ID.
-4. **No deleting.** Only pause and enable. No billing, users or account settings.
+4. **No deleting.** Only pause and enable. The one exception: removing negative keywords and detaching negative keyword lists, which undoes mistakes. No billing, users or account settings.
 5. **Budget limits.** Campaign budgets only up to `max_daily_budget` and at most `max_budget_change_percent` per step (default 50%), set in the profile. No shared budgets.
-6. **Change log.** Every executed change goes to `logs/changes.jsonl` with time, profile, account, object, old and new value.
+6. **Change log.** Every executed change goes to `logs/changes.jsonl` with a unique `change_id`, time, profile, account, tool, object type and ID, name, old and new value.
+7. **Partial failures are reported.** Where several items go in one call (e.g. negative keywords), good ones go through and each failing one is named with Google's error code and a short explanation.
 
 ## Installation
 

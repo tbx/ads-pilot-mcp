@@ -48,6 +48,7 @@ Für Agenturen kommt ein Risiko dazu, das kaum ein Werkzeug gezielt abfängt: **
 - Gebotsanpassungen für Geräte und Uhrzeiten (Werbezeitplaner)
 - Finale URL, Titel und Texte von Responsive Search Ads ändern
 - Tagesbudgets von Kampagnen, innerhalb der Grenzen im Profil
+- Negative Keywords auf Kampagnen-, Anzeigengruppen-, Listen- und Kontoebene, auch für Performance Max
 
 **Ausblick**
 
