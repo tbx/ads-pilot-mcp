@@ -153,7 +153,7 @@ uv run python scripts/og/render.py
 
 1. **Optimize** (this version)
 2. **Build:** create complete Search campaigns, started paused, budget capped per profile
-3. **Extend:** more campaign types, assets, keyword research
+3. **Extend:** create Performance Max and other campaign types, image and video assets, keyword research
 4. **Accompany:** recurring checks and reports; Claude proposes, a human approves
 
 **Option at any stage: run it on your own server.** Today Claude Desktop starts ads-pilot on your Mac. Run on your own server over HTTPS with a sign-in, it can be added to Claude as a custom connector and used from claude.ai, the mobile app and by colleagues. Still self-hosted, still your own Google Cloud project, same guardrails.

@@ -34,7 +34,7 @@ Für Agenturen kommt ein Risiko dazu, das kaum ein Werkzeug gezielt abfängt: **
 1. **Probelauf ist Standard.** Jede Änderung wird zuerst nur geprüft und zeigt alten und neuen Wert. Ausgeführt wird erst nach ausdrücklicher Bestätigung, innerhalb von 15 Minuten nach dem Probelauf.
 2. **Freigabeliste pro Profil.** Schreibzugriff gibt es nur auf Konten, die im Profil stehen. Claude kann diese Liste nicht ändern.
 3. **Ein Profil pro Kunde.** Das Profil wird beim Start festgelegt. Jede Antwort nennt Profil und Kunden-ID.
-4. **Kein Löschen.** Nur pausieren und aktivieren. Das lässt sich immer zurücknehmen.
+4. **Kein Löschen.** Kampagnen, Anzeigengruppen, Anzeigen und Keywords werden nur pausiert. Entfernen geht nur bei Dingen, die man wieder hinzufügen kann, etwa negative Keywords oder Standorte. Jede protokollierte Änderung lässt sich mit einem Aufruf zurücknehmen.
 5. **Keine heiklen Bereiche.** Keine Abrechnung, Nutzer oder Kontoeinstellungen. Kampagnenbudgets nur bis zu einer Obergrenze pro Profil und in begrenzten Schritten.
 6. **Lückenloses Protokoll.** Jede ausgeführte Änderung mit Zeit, Profil, Konto, Objekt, altem und neuem Wert. So lässt sie sich gegenüber dem Kunden belegen und bei Bedarf von Hand zurücknehmen.
 
@@ -60,7 +60,7 @@ Für Agenturen kommt ein Risiko dazu, das kaum ein Werkzeug gezielt abfängt: **
 | Version | Rolle von Claude | Inhalt |
 |---|---|---|
 | 2: Aufbauen | Kampagnenmanager | Suchkampagnen komplett anlegen. Neue Kampagnen starten pausiert, Budgets nur beim Anlegen und nur bis zu einer Obergrenze pro Profil. |
-| 3: Erweitern | Spezialist | Weitere Kampagnentypen, Assets, Keyword-Recherche |
+| 3: Erweitern | Spezialist | Performance Max und weitere Kampagnentypen anlegen, Bild- und Video-Assets, Keyword-Recherche |
 | 4: Begleiten | Account Manager | Wiederkehrende Kontrollen und Berichte. Claude schlägt vor, der Mensch gibt frei. |
 
 **Option in jeder Stufe: der eigene Server.** Heute startet Claude Desktop ads-pilot lokal auf dem Mac. Auf einem eigenen Server (HTTPS, mit Anmeldung) wird daraus ein benutzerdefinierter Konnektor in Claude: nutzbar in claude.ai im Browser, in der Mobile-App und von Kollegen, und die Grundlage für regelmäßige Prüfungen in Version 4. Es bleibt selbst betrieben, mit dem eigenen Google-Cloud-Projekt.

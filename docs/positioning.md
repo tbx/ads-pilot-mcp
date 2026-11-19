@@ -34,7 +34,7 @@ Agencies face one more risk that hardly any tool guards against on purpose: **a 
 1. **Dry run by default.** Every change is validated first and shows the old and the new value. It only runs after explicit confirmation, within 15 minutes of the dry run.
 2. **Allowlist per profile.** Write access only to accounts listed in the profile. Claude cannot change that list.
 3. **One profile per client.** The profile is chosen at startup. Every response names the profile and the customer ID.
-4. **No deleting.** Only pause and enable, which can always be undone.
+4. **No deleting.** Campaigns, ad groups, ads and keywords are only paused. Removing works only for things you can add back, such as negative keywords or locations. Every logged change can be undone with one call.
 5. **No sensitive areas.** No billing, users or account settings. Campaign budgets only up to a cap per profile and in limited steps.
 6. **A complete change log.** Every executed change with time, profile, account, object, old and new value. Easy to show to the client and to reverse by hand if needed.
 
@@ -60,7 +60,7 @@ Agencies face one more risk that hardly any tool guards against on purpose: **a 
 | Version | Claude's role | Scope |
 |---|---|---|
 | 2: Build | Campaign manager | Create complete Search campaigns. New campaigns start paused; budgets only at creation and only up to a cap per profile. |
-| 3: Extend | Specialist | More campaign types, assets, keyword research |
+| 3: Extend | Specialist | Create Performance Max and other campaign types, image and video assets, keyword research |
 | 4: Accompany | Account manager | Recurring checks and reports. Claude proposes, a human approves. |
 
 **Option at any stage: your own server.** Today Claude Desktop starts ads-pilot locally on your Mac. Run on your own server (HTTPS, with a sign-in), it becomes a custom connector in Claude: usable from claude.ai in the browser, the mobile app and by colleagues, and the basis for scheduled checks in version 4. It stays self-hosted, with your own Google Cloud project.
