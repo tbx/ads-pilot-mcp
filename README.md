@@ -18,7 +18,7 @@ Small and local: the server runs on your own machine with your own Google Cloud 
 | `list_accounts` | All Google Ads accounts the login can see, incl. clients under a manager account |
 | `run_gaql` | Any read-only query in Google Ads Query Language |
 | `recent_changes` | Latest executed changes from the change log |
-| `set_status` | Pause or enable keywords, ads, ad groups |
+| `set_status` | Pause or enable keywords, ads, ad groups, campaigns and Performance Max asset groups |
 | `add_keywords` | Add keywords (exact, phrase, broad) to an ad group |
 | `set_device_bid_adjustment` | Bid adjustment per device, -100% to +900% |
 | `set_ad_schedule_bid_adjustment` | Bid adjustment per time window (ad schedule) |

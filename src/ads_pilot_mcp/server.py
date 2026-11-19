@@ -103,6 +103,7 @@ def create_server(profile: Profile, ads: Ads | None = None, log_folder: Path | N
             "max_daily_budget": profile.max_daily_budget,
             "max_budget_change_percent": profile.max_budget_change_percent,
             "max_negative_keywords_per_call": profile.max_negative_keywords_per_call,
+            "allow_campaign_status_change": profile.allow_campaign_status_change,
         }
 
     @mcp.tool(annotations={"readOnlyHint": True})
@@ -172,7 +173,7 @@ def create_server(profile: Profile, ads: Ads | None = None, log_folder: Path | N
 
     @mcp.tool(annotations=write_hints)
     def set_status(
-        object_type: Literal["keyword", "ad", "ad_group"],
+        object_type: Literal["keyword", "ad", "ad_group", "campaign", "asset_group"],
         ids: list[str],
         status: Status,
         customer_id: str | None = None,
@@ -180,12 +181,15 @@ def create_server(profile: Profile, ads: Ads | None = None, log_folder: Path | N
         confirm: bool = False,
         confirm_token: str | None = None,
     ) -> dict[str, Any]:
-        """Pause or enable keywords, ads or ad groups (max 50 per call). There is no delete.
-        ID formats: keyword "adGroupId~criterionId", ad "adGroupId~adId", ad_group "adGroupId".
+        """Pause or enable keywords, ads, ad groups, campaigns or Performance Max asset groups (max 50 per call).
+        There is no delete. ID formats: keyword "adGroupId~criterionId", ad "adGroupId~adId", ad_group "adGroupId",
+        campaign "campaignId", asset_group "assetGroupId". Campaigns only if the profile allows it
+        (allow_campaign_status_change, default true).
         First call = dry run. Execute only after the user approved, with confirm=true and confirm_token.
         The confirm_token is valid for 15 minutes."""
         return write("set_status", customer_id, login_customer_id, confirm, confirm_token,
-                     lambda cid, login: writes.plan_set_status(ads, cid, login, object_type, ids, status))
+                     lambda cid, login: writes.plan_set_status(ads, cid, login, object_type, ids, status,
+                                                               profile.allow_campaign_status_change))
 
     @mcp.tool(annotations={**write_hints, "idempotentHint": False})
     def add_keywords(

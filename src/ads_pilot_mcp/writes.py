@@ -236,6 +236,7 @@ STATUS_TARGETS = {
         "method": "mutate_ad_group_criteria",
         "operation": "AdGroupCriterionOperation",
         "enum": "AdGroupCriterionStatusEnum",
+        "parents": "ad_group.name, ad_group.status, campaign.name, campaign.status",
     },
     "ad": {
         "id_pattern": r"\d+~\d+",
@@ -247,6 +248,7 @@ STATUS_TARGETS = {
         "method": "mutate_ad_group_ads",
         "operation": "AdGroupAdOperation",
         "enum": "AdGroupAdStatusEnum",
+        "parents": "ad_group.name, ad_group.status, campaign.name, campaign.status",
     },
     "ad_group": {
         "id_pattern": r"\d+",
@@ -258,14 +260,43 @@ STATUS_TARGETS = {
         "method": "mutate_ad_groups",
         "operation": "AdGroupOperation",
         "enum": "AdGroupStatusEnum",
+        "parents": "ad_group.name, ad_group.status, campaign.name, campaign.status",
+    },
+    "campaign": {
+        "id_pattern": r"\d+",
+        "id_help": "campaignId, e.g. 123456",
+        "collection": "campaigns",
+        "table": "campaign",
+        "fields": "campaign.id, campaign.advertising_channel_type, campaign_budget.amount_micros, customer.currency_code",
+        "service": "CampaignService",
+        "method": "mutate_campaigns",
+        "operation": "CampaignOperation",
+        "enum": "CampaignStatusEnum",
+        "parents": "campaign.name",
+    },
+    "asset_group": {
+        "id_pattern": r"\d+",
+        "id_help": "assetGroupId, e.g. 123456 (Performance Max)",
+        "collection": "assetGroups",
+        "table": "asset_group",
+        "fields": "asset_group.id, asset_group.name, campaign.id, campaign.advertising_channel_type",
+        "service": "AssetGroupService",
+        "method": "mutate_asset_groups",
+        "operation": "AssetGroupOperation",
+        "enum": "AssetGroupStatusEnum",
+        "parents": "campaign.name, campaign.status",
     },
 }
 
 
-def plan_set_status(ads: Ads, cid: str, login: str | None, object_type: str, ids: list[str], status: str) -> Plan:
+def plan_set_status(ads: Ads, cid: str, login: str | None, object_type: str, ids: list[str], status: str,
+                    allow_campaign_status_change: bool = True) -> Plan:
     target = STATUS_TARGETS.get(object_type)
     if target is None:
         raise WriteRefused(f"object_type must be one of: {', '.join(STATUS_TARGETS)}.")
+    if object_type == "campaign" and not allow_campaign_status_change:
+        raise WriteRefused("This profile does not allow pausing or enabling whole campaigns "
+                           "(allow_campaign_status_change: false).")
     if status not in ("PAUSED", "ENABLED"):
         raise WriteRefused("status must be PAUSED or ENABLED. Deleting is not supported.")
     ids = [str(i).strip() for i in ids]
@@ -278,8 +309,7 @@ def plan_set_status(ads: Ads, cid: str, login: str | None, object_type: str, ids
     table = target["table"]
     names = [f"customers/{cid}/{target['collection']}/{i}" for i in dict.fromkeys(ids)]
     query = (
-        f"SELECT {table}.resource_name, {table}.status, {target['fields']}, ad_group.name, ad_group.status, "
-        "campaign.name, campaign.status "
+        f"SELECT {table}.resource_name, {table}.status, {target['fields']}, {target['parents']} "
         f"FROM {table} WHERE {table}.resource_name IN ({_quote(names)})"
     )
     rows, _ = ads.search(cid, query, login_customer_id=login, max_rows=MAX_ITEMS)
@@ -298,6 +328,8 @@ def plan_set_status(ads: Ads, cid: str, login: str | None, object_type: str, ids
                 f"{_describe(object_type, row)} is removed or sits in a removed ad group or campaign. "
                 "It cannot be changed."
             )
+        if object_type == "asset_group" and row.get("campaign.advertising_channel_type") != "PERFORMANCE_MAX":
+            raise WriteRefused(f"{_describe(object_type, row)} is not in a Performance Max campaign.")
         if object_type == "keyword" and row.get("ad_group_criterion.type") != "KEYWORD":
             raise WriteRefused(f"{name.rsplit('/', 1)[-1]} is not a keyword.")
         if object_type == "keyword" and row.get("ad_group_criterion.negative"):
@@ -313,11 +345,44 @@ def plan_set_status(ads: Ads, cid: str, login: str | None, object_type: str, ids
         op.update.status = getattr(client.enums, target["enum"])[status]
         client.copy_from(op.update_mask, _mask("status"))
         plan.operations.append(op)
-        plan.changes.append(Change(_describe(object_type, row), "status", old, status, name))
+        plan.changes.append(Change(_describe(object_type, row), "status", old, status, name,
+                                   object_type=object_type, object_id=name.rsplit("/", 1)[-1],
+                                   name=_name_of(object_type, row)))
+        if object_type == "campaign" and status == "PAUSED":
+            plan.warnings.append(f"Pausing {_describe(object_type, row)} stops all its ads.")
+        if object_type == "campaign" and status == "ENABLED":
+            budget = (row.get("campaign_budget.amount_micros") or 0) / 1_000_000
+            plan.warnings.append(f"Enabling {_describe(object_type, row)} starts spending again, "
+                                 f"daily budget {budget:.2f} {row.get('customer.currency_code') or ''}".rstrip() + ".")
+        if object_type == "asset_group" and status == "PAUSED":
+            others, _ = ads.search(
+                cid, "SELECT asset_group.id FROM asset_group WHERE asset_group.status = 'ENABLED' AND "
+                f"campaign.id = {row.get('campaign.id')} AND asset_group.id != {row.get('asset_group.id')}",
+                login_customer_id=login, max_rows=100)
+            if others:
+                plan.warnings.append(f"Pausing {_describe(object_type, row)} stops its ads; the campaign keeps running "
+                                     f"with {len(others)} other active asset group(s).")
+            else:
+                plan.warnings.append(f"{_describe(object_type, row)} is the campaign's last active asset group: "
+                                     "pausing it stops the whole campaign from serving.")
     return plan
 
 
+def _name_of(object_type: str, row: dict) -> str:
+    return {
+        "keyword": row.get("ad_group_criterion.keyword.text"),
+        "ad": str(row.get("ad_group_ad.ad.id")),
+        "ad_group": row.get("ad_group.name"),
+        "campaign": row.get("campaign.name"),
+        "asset_group": row.get("asset_group.name"),
+    }.get(object_type) or ""
+
+
 def _describe(object_type: str, row: dict) -> str:
+    if object_type == "campaign":
+        return f"campaign '{row.get('campaign.name')}' ({row.get('campaign.advertising_channel_type')})"
+    if object_type == "asset_group":
+        return f"asset group '{row.get('asset_group.name')}' (campaign '{row.get('campaign.name')}')"
     where = f"in ad group '{row.get('ad_group.name')}' (campaign '{row.get('campaign.name')}')"
     if object_type == "keyword":
         return f"keyword '{row.get('ad_group_criterion.keyword.text')}' [{row.get('ad_group_criterion.keyword.match_type')}] {where}"

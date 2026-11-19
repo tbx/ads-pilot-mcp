@@ -43,7 +43,7 @@ Agencies face one more risk that hardly any tool guards against on purpose: **a 
 **Version 1: Optimize** (in progress)
 
 - List accounts, run free-form queries (GAQL)
-- Pause or enable keywords, ads and ad groups
+- Pause or enable keywords, ads, ad groups, campaigns and Performance Max asset groups
 - Add keywords to ad groups
 - Bid adjustments for devices and times of day (ad schedule)
 - Change final URL, headlines and descriptions of Responsive Search Ads

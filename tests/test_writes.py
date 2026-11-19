@@ -27,6 +27,9 @@ class FakeAccount:
         self.mobile_modifier = None
         self.schedule = [("MONDAY", 0, "ZERO", 6, "ZERO", 0.7)]
         self.budget = {"micros": 40_000_000, "shared": False, "refs": 1}
+        self.asset_group_channel = "PERFORMANCE_MAX"
+        self.other_asset_groups = False
+        self.asset_group_status = "PAUSED"
 
     def client(self, login_customer_id=None):
         return self._client
@@ -46,6 +49,17 @@ class FakeAccount:
                      "ad_group.status": "ENABLED", "campaign.name": "Coffee DE - Search"}], False
         if "FROM ad_group_criterion WHERE ad_group.id" in query:
             return [{"ad_group_criterion.keyword.text": "Espresso Beans", "ad_group_criterion.keyword.match_type": "PHRASE"}], False
+        if "FROM campaign WHERE campaign.resource_name IN" in query:
+            return [{"campaign.resource_name": f"customers/{customer_id}/campaigns/555", "campaign.status": "ENABLED",
+                     "campaign.id": 555, "campaign.advertising_channel_type": "SEARCH", "campaign.name": "Coffee DE - Search",
+                     "campaign_budget.amount_micros": 40_000_000, "customer.currency_code": "EUR"}], False
+        if "FROM asset_group WHERE asset_group.status = 'ENABLED'" in query:
+            return [{"asset_group.id": 999}] if self.other_asset_groups else [], False
+        if "FROM asset_group WHERE asset_group.resource_name IN" in query:
+            return [{"asset_group.resource_name": f"customers/{customer_id}/assetGroups/321", "asset_group.status": self.asset_group_status,
+                     "asset_group.id": 321, "asset_group.name": "Espresso lovers", "campaign.id": 777,
+                     "campaign.advertising_channel_type": self.asset_group_channel, "campaign.name": "Coffee PMax",
+                     "campaign.status": "ENABLED"}], False
         if "campaign_budget.amount_micros" in query:
             return [{"campaign.name": "Coffee DE - Search", "campaign.status": "ENABLED",
                      "campaign_budget.resource_name": f"customers/{customer_id}/campaignBudgets/777",
@@ -340,3 +354,52 @@ def test_tokens_of_existing_tools_expire_too(server, account, monkeypatch):
     with pytest.raises(ToolError, match="expired"):
         call(server, "set_status", **PAUSE, confirm=True, confirm_token=token)
     assert all(validate_only for validate_only, *_ in account.mutations)
+
+
+# ---- set_status: campaigns and asset groups (priority 2) ---------------------
+
+def test_pause_campaign_dry_run(server, account):
+    result = call(server, "set_status", object_type="campaign", ids=["555"], status="PAUSED")
+    assert result["changes"][0]["object"] == "campaign 'Coffee DE - Search' (SEARCH)"
+    assert result["changes"][0]["old"] == "ENABLED" and result["changes"][0]["new"] == "PAUSED"
+    assert any("stops all its ads" in w for w in result["warnings"])
+    assert account.mutations == [(True, "CampaignService", 1)]
+
+
+def test_campaign_status_change_can_be_locked_per_profile(account, tmp_path):
+    profile = Profile("fjord", {"client_id": "x"}, default_customer_id=DEMO, allowed_customer_ids=frozenset({DEMO}),
+                      allow_campaign_status_change=False)
+    with pytest.raises(ToolError, match="allow_campaign_status_change: false"):
+        call(create_server(profile, account, log_folder=tmp_path), "set_status",
+             object_type="campaign", ids=["555"], status="PAUSED")
+    assert account.mutations == []
+
+
+def test_enable_asset_group_and_log(server, account, tmp_path):
+    args = {"object_type": "asset_group", "ids": ["321"], "status": "ENABLED"}
+    dry = call(server, "set_status", **args)
+    assert dry["changes"][0]["object"] == "asset group 'Espresso lovers' (campaign 'Coffee PMax')"
+    call(server, "set_status", **args, confirm=True, confirm_token=dry["confirm_token"])
+    entry = json.loads((tmp_path / "changes.jsonl").read_text().splitlines()[-1])
+    assert entry["object_type"] == "asset_group" and entry["object_id"] == "321" and entry["name"] == "Espresso lovers"
+    assert entry["old"] == "PAUSED" and entry["new"] == "ENABLED" and entry["change_id"]
+
+
+def test_asset_group_outside_pmax_is_refused(server, account):
+    account.asset_group_channel = "SEARCH"
+    with pytest.raises(ToolError, match="not in a Performance Max campaign"):
+        call(server, "set_status", object_type="asset_group", ids=["321"], status="ENABLED")
+
+
+def test_campaign_id_format(server):
+    with pytest.raises(ToolError, match="campaignId"):
+        call(server, "set_status", object_type="campaign", ids=["555~1"], status="PAUSED")
+
+
+def test_pausing_last_asset_group_warns_campaign_stops(server, account):
+    account.asset_group_status = "ENABLED"
+    result = call(server, "set_status", object_type="asset_group", ids=["321"], status="PAUSED")
+    assert any("last active asset group" in w for w in result["warnings"])
+    account.other_asset_groups = True
+    result = call(server, "set_status", object_type="asset_group", ids=["321"], status="PAUSED")
+    assert any("1 other active asset group" in w for w in result["warnings"])

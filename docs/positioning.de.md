@@ -43,7 +43,7 @@ Für Agenturen kommt ein Risiko dazu, das kaum ein Werkzeug gezielt abfängt: **
 **Version 1: Optimieren** (in Arbeit)
 
 - Konten auflisten, freie Abfragen (GAQL)
-- Keywords, Anzeigen und Anzeigengruppen pausieren oder aktivieren
+- Keywords, Anzeigen, Anzeigengruppen, Kampagnen und Performance-Max-Asset-Gruppen pausieren oder aktivieren
 - Keywords zu Anzeigengruppen hinzufügen
 - Gebotsanpassungen für Geräte und Uhrzeiten (Werbezeitplaner)
 - Finale URL, Titel und Texte von Responsive Search Ads ändern

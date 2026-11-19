@@ -72,6 +72,7 @@ class Profile:
     max_daily_budget: float | None = None
     max_budget_change_percent: float = 50.0
     max_negative_keywords_per_call: int = 50
+    allow_campaign_status_change: bool = True
 
     def resolve_customer_id(self, customer_id: str | None) -> str:
         return normalize_customer_id(customer_id or self.default_customer_id)
@@ -128,6 +129,14 @@ def load_profile(name: str | None = None) -> Profile:
             raise ConfigError(f"{key} in {path.name} must be greater than 0.")
         return number
 
+    def optional_bool(key: str, default: bool) -> bool:
+        value = data.get(key)
+        if value is None or value == "":
+            return default
+        if not isinstance(value, bool):
+            raise ConfigError(f"{key} in {path.name} must be true or false, got '{value}'.")
+        return value
+
     return Profile(
         name=name,
         auth=dict(auth),
@@ -137,4 +146,5 @@ def load_profile(name: str | None = None) -> Profile:
         max_daily_budget=optional_number("max_daily_budget"),
         max_budget_change_percent=optional_number("max_budget_change_percent") or 50.0,
         max_negative_keywords_per_call=int(optional_number("max_negative_keywords_per_call") or 50),
+        allow_campaign_status_change=optional_bool("allow_campaign_status_change", True),
     )
