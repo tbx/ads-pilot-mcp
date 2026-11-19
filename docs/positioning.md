@@ -49,6 +49,7 @@ Agencies face one more risk that hardly any tool guards against on purpose: **a 
 - Change final URL, headlines and descriptions of Responsive Search Ads
 - Daily campaign budgets, within the profile's limits
 - Negative keywords on campaign, ad group, list and account level, also for Performance Max
+- Location and language targeting, Search partners and Display network
 
 **Roadmap**
 

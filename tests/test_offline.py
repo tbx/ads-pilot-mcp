@@ -138,6 +138,7 @@ def test_tools_are_registered(profile):
         "set_status", "add_keywords", "set_device_bid_adjustment",
         "set_ad_schedule_bid_adjustment", "update_responsive_search_ad", "set_campaign_budget",
         "add_negative_keywords", "remove_negative_keywords", "manage_negative_keyword_list",
+        "set_location_targeting", "set_language_targeting", "set_network_settings",
     }
 
 

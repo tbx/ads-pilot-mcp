@@ -13,7 +13,7 @@ from fastmcp import FastMCP
 from fastmcp.exceptions import ToolError
 from pydantic import BaseModel
 
-from . import negatives, writes
+from . import negatives, targeting, writes
 from .ads import Ads, AdsError
 from .config import ConfigError, Profile, format_customer_id, load_profile, log_dir
 from .writes import TOKEN_TTL_SECONDS, WriteRefused, Writer
@@ -104,6 +104,7 @@ def create_server(profile: Profile, ads: Ads | None = None, log_folder: Path | N
             "max_budget_change_percent": profile.max_budget_change_percent,
             "max_negative_keywords_per_call": profile.max_negative_keywords_per_call,
             "allow_campaign_status_change": profile.allow_campaign_status_change,
+            "allow_location_changes": profile.allow_location_changes,
         }
 
     @mcp.tool(annotations={"readOnlyHint": True})
@@ -360,6 +361,72 @@ def create_server(profile: Profile, ads: Ads | None = None, log_folder: Path | N
         return write("manage_negative_keyword_list", customer_id, login_customer_id, confirm, confirm_token,
                      lambda cid, login: negatives.plan_manage_negative_keyword_list(
                          ads, cid, login, action, name, shared_set_id, campaign_id))
+
+    # ---- targeting and networks (priority 3 of the extension brief) ----
+
+    @mcp.tool(annotations=write_hints)
+    def set_location_targeting(
+        campaign_id: str,
+        add: list[str] | None = None,
+        exclude: list[str] | None = None,
+        remove: list[str] | None = None,
+        country_code: str | None = None,
+        location_type: Literal["PRESENCE", "PRESENCE_OR_INTEREST"] | None = None,
+        customer_id: str | None = None,
+        login_customer_id: str | None = None,
+        confirm: bool = False,
+        confirm_token: str | None = None,
+    ) -> dict[str, Any]:
+        """Change where a campaign shows ads (Search, Performance Max and others).
+        add: target locations. exclude: exclude locations. remove: take a targeted or excluded location off again.
+        Each entry is a geo target ID (e.g. "2620" for Portugal) or a name ("Lisbon"); names are looked up and the
+        dry run shows the found name and type. Ambiguous names are refused with candidate IDs; country_code
+        (e.g. "PT") narrows the lookup. location_type: PRESENCE (people in the location) or PRESENCE_OR_INTEREST
+        (in or interested in it). The dry run warns loudly if the campaign would end up without any location
+        (worldwide). Max 50 locations per call. Only if the profile allows it (allow_location_changes).
+        First call = dry run. Execute only after the user approved, with confirm=true and confirm_token.
+        The confirm_token is valid for 15 minutes."""
+        return write("set_location_targeting", customer_id, login_customer_id, confirm, confirm_token,
+                     lambda cid, login: targeting.plan_location_targeting(
+                         ads, cid, login, campaign_id, add or [], exclude or [], remove or [], country_code,
+                         location_type, profile.allow_location_changes))
+
+    @mcp.tool(annotations=write_hints)
+    def set_language_targeting(
+        campaign_id: str,
+        add: list[str] | None = None,
+        remove: list[str] | None = None,
+        customer_id: str | None = None,
+        login_customer_id: str | None = None,
+        confirm: bool = False,
+        confirm_token: str | None = None,
+    ) -> dict[str, Any]:
+        """Add or remove target languages of a campaign. Each entry is a language constant ID (e.g. "1001"),
+        a code ("de") or an English name ("German"). The dry run warns if the campaign would end up without
+        any language (all languages).
+        First call = dry run. Execute only after the user approved, with confirm=true and confirm_token.
+        The confirm_token is valid for 15 minutes."""
+        return write("set_language_targeting", customer_id, login_customer_id, confirm, confirm_token,
+                     lambda cid, login: targeting.plan_language_targeting(
+                         ads, cid, login, campaign_id, add or [], remove or []))
+
+    @mcp.tool(annotations=write_hints)
+    def set_network_settings(
+        campaign_id: str,
+        search_partners: bool | None = None,
+        display_network: bool | None = None,
+        customer_id: str | None = None,
+        login_customer_id: str | None = None,
+        confirm: bool = False,
+        confirm_token: str | None = None,
+    ) -> dict[str, Any]:
+        """Turn Google search partners and/or the Display network on or off for a Search campaign
+        (campaign.network_settings). Only for Search campaigns; Performance Max has no such setting and is refused.
+        First call = dry run. Execute only after the user approved, with confirm=true and confirm_token.
+        The confirm_token is valid for 15 minutes."""
+        return write("set_network_settings", customer_id, login_customer_id, confirm, confirm_token,
+                     lambda cid, login: targeting.plan_network_settings(
+                         ads, cid, login, campaign_id, search_partners, display_network))
 
     return mcp
 

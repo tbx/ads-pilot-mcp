@@ -73,6 +73,7 @@ class Profile:
     max_budget_change_percent: float = 50.0
     max_negative_keywords_per_call: int = 50
     allow_campaign_status_change: bool = True
+    allow_location_changes: bool = True
 
     def resolve_customer_id(self, customer_id: str | None) -> str:
         return normalize_customer_id(customer_id or self.default_customer_id)
@@ -147,4 +148,5 @@ def load_profile(name: str | None = None) -> Profile:
         max_budget_change_percent=optional_number("max_budget_change_percent") or 50.0,
         max_negative_keywords_per_call=int(optional_number("max_negative_keywords_per_call") or 50),
         allow_campaign_status_change=optional_bool("allow_campaign_status_change", True),
+        allow_location_changes=optional_bool("allow_location_changes", True),
     )

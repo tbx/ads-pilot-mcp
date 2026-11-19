@@ -119,13 +119,35 @@ class Ads:
         with ads_errors(self.profile.name):
             client = self.client(login_customer_id)
             svc = client.get_service(service)
-            request = {"customer_id": customer_id, "operations": operations, "validate_only": validate_only}
+            # GoogleAdsService.mutate takes mixed operations (e.g. a campaign setting plus criteria) in one request.
+            mixed = service == "GoogleAdsService" and method == "mutate"
+            request = {"customer_id": customer_id, "mutate_operations" if mixed else "operations": operations,
+                       "validate_only": validate_only}
             if partial_failure:
                 request["partial_failure"] = True
             response = getattr(svc, method)(request=request)
         failures = _partial_failures(client, response) if partial_failure else {}
-        results = [r.resource_name for i, r in enumerate(response.results) if i not in failures]
+        items = response.mutate_operation_responses if mixed else response.results
+        results = [_resource_name_of(r) for i, r in enumerate(items) if i not in failures]
         return MutateResult(results=results, failures=failures)
+
+    def suggest_geo_targets(self, names: list[str], country_code: str | None = None,
+                            locale: str = "en") -> dict[str, list[dict[str, Any]]]:
+        """Look up geo target constants by name. Returns name -> candidates (id, name, canonical_name, type)."""
+        with ads_errors(self.profile.name):
+            svc = self.client(None).get_service("GeoTargetConstantService")
+            request = {"locale": locale, "location_names": {"names": names}}
+            if country_code:
+                request["country_code"] = country_code.upper()
+            response = svc.suggest_geo_target_constants(request=request)
+        out: dict[str, list[dict[str, Any]]] = {n: [] for n in names}
+        for suggestion in response.geo_target_constant_suggestions:
+            geo = suggestion.geo_target_constant
+            out.setdefault(suggestion.search_term, []).append({
+                "id": str(geo.id), "name": geo.name, "canonical_name": geo.canonical_name,
+                "type": geo.target_type, "country_code": geo.country_code, "status": geo.status.name,
+            })
+        return out
 
 
 class ads_errors:
@@ -151,6 +173,14 @@ class ads_errors:
                 ) from exc
             raise AdsError(f"Google sign-in failed, check the credentials in the profile: {exc}") from exc
         return False
+
+
+def _resource_name_of(item: Any) -> str:
+    """Resource name of a mutate result, also for GoogleAdsService.mutate responses (one-of results)."""
+    if getattr(item, "resource_name", ""):
+        return item.resource_name
+    which = type(item).pb(item).WhichOneof("response") if isinstance(item, proto.Message) else None
+    return getattr(getattr(item, which), "resource_name", "") if which else ""
 
 
 def _describe_error(error) -> str:

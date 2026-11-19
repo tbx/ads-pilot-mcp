@@ -27,6 +27,9 @@ Small and local: the server runs on your own machine with your own Google Cloud 
 | `add_negative_keywords` | Negative keywords on a campaign (incl. Performance Max), ad group, negative keyword list or the account-level list |
 | `remove_negative_keywords` | Remove negative keywords again, to undo mistakes |
 | `manage_negative_keyword_list` | Create a negative keyword list, attach it to a campaign or detach it |
+| `set_location_targeting` | Add, exclude or remove locations (by ID or name) and set presence or interest; warns before a campaign would run worldwide |
+| `set_language_targeting` | Add or remove target languages (by ID, code or name) |
+| `set_network_settings` | Search partners and Display network on or off (Search campaigns only) |
 
 ## Guardrails
 
