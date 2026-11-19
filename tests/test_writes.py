@@ -329,3 +329,14 @@ def test_budget_change_is_logged(server, account, tmp_path):
     call(server, "set_campaign_budget", campaign_id="555", daily_amount=45, confirm=True, confirm_token=token)
     entry = json.loads((tmp_path / "changes.jsonl").read_text().splitlines()[-1])
     assert entry["field"] == "daily_budget" and entry["old"] == "40.00 EUR" and entry["new"] == "45.00 EUR"
+
+
+def test_tokens_of_existing_tools_expire_too(server, account, monkeypatch):
+    import time as _time
+    from ads_pilot_mcp import writes as _writes
+    token = call(server, "set_status", **PAUSE)["confirm_token"]
+    real = _time.time
+    monkeypatch.setattr(_writes.time, "time", lambda: real() + _writes.TOKEN_TTL_SECONDS + 5)
+    with pytest.raises(ToolError, match="expired"):
+        call(server, "set_status", **PAUSE, confirm=True, confirm_token=token)
+    assert all(validate_only for validate_only, *_ in account.mutations)

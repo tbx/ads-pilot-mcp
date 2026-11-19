@@ -31,7 +31,7 @@ Agencies face one more risk that hardly any tool guards against on purpose: **a 
 
 ## The guardrails in detail
 
-1. **Dry run by default.** Every change is validated first and shows the old and the new value. It only runs after explicit confirmation.
+1. **Dry run by default.** Every change is validated first and shows the old and the new value. It only runs after explicit confirmation, within 15 minutes of the dry run.
 2. **Allowlist per profile.** Write access only to accounts listed in the profile. Claude cannot change that list.
 3. **One profile per client.** The profile is chosen at startup. Every response names the profile and the customer ID.
 4. **No deleting.** Only pause and enable, which can always be undone.

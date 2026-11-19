@@ -31,7 +31,7 @@ Für Agenturen kommt ein Risiko dazu, das kaum ein Werkzeug gezielt abfängt: **
 
 ## Die Leitplanken im Detail
 
-1. **Probelauf ist Standard.** Jede Änderung wird zuerst nur geprüft und zeigt alten und neuen Wert. Ausgeführt wird erst nach ausdrücklicher Bestätigung.
+1. **Probelauf ist Standard.** Jede Änderung wird zuerst nur geprüft und zeigt alten und neuen Wert. Ausgeführt wird erst nach ausdrücklicher Bestätigung, innerhalb von 15 Minuten nach dem Probelauf.
 2. **Freigabeliste pro Profil.** Schreibzugriff gibt es nur auf Konten, die im Profil stehen. Claude kann diese Liste nicht ändern.
 3. **Ein Profil pro Kunde.** Das Profil wird beim Start festgelegt. Jede Antwort nennt Profil und Kunden-ID.
 4. **Kein Löschen.** Nur pausieren und aktivieren. Das lässt sich immer zurücknehmen.

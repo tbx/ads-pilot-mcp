@@ -88,9 +88,9 @@ class Writer:
         build: Callable[[], Plan],
         confirm: bool,
         confirm_token: str | None,
-        ttl: int | None = None,
+        ttl: int | None = TOKEN_TTL_SECONDS,
     ) -> dict[str, Any]:
-        """Dry run or execute one plan. With ttl, the confirm_token expires after ttl seconds."""
+        """Dry run or execute one plan. The confirm_token expires after ttl seconds (default 15 minutes)."""
         where = {"profile": self.profile.name, "customer_id": format_customer_id(customer_id)}
         if not self.profile.is_write_allowed(customer_id):
             raise WriteRefused(

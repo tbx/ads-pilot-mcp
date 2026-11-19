@@ -154,7 +154,8 @@ def create_server(profile: Profile, ads: Ads | None = None, log_folder: Path | N
 
     # ---- write tools: dry run first, execute only with confirm + confirm_token ----
 
-    def write(tool, customer_id, login_customer_id, confirm, confirm_token, build, ttl=None) -> dict[str, Any]:
+    def write(tool, customer_id, login_customer_id, confirm, confirm_token, build,
+              ttl=TOKEN_TTL_SECONDS) -> dict[str, Any]:
         cid, login = resolve(customer_id, login_customer_id, tool)
         log.info("profile=%s customer=%s tool=%s %s", profile.name, cid, tool, "EXECUTE" if confirm else "dry run")
         try:
@@ -181,7 +182,8 @@ def create_server(profile: Profile, ads: Ads | None = None, log_folder: Path | N
     ) -> dict[str, Any]:
         """Pause or enable keywords, ads or ad groups (max 50 per call). There is no delete.
         ID formats: keyword "adGroupId~criterionId", ad "adGroupId~adId", ad_group "adGroupId".
-        First call = dry run. Execute only after the user approved, with confirm=true and confirm_token."""
+        First call = dry run. Execute only after the user approved, with confirm=true and confirm_token.
+        The confirm_token is valid for 15 minutes."""
         return write("set_status", customer_id, login_customer_id, confirm, confirm_token,
                      lambda cid, login: writes.plan_set_status(ads, cid, login, object_type, ids, status))
 
@@ -197,7 +199,8 @@ def create_server(profile: Profile, ads: Ads | None = None, log_folder: Path | N
     ) -> dict[str, Any]:
         """Add keywords to an ad group (max 50 per call). Keywords that already exist there are skipped.
         match_type is EXACT, PHRASE or BROAD; give the plain text without brackets or quotes.
-        First call = dry run. Execute only after the user approved, with confirm=true and confirm_token."""
+        First call = dry run. Execute only after the user approved, with confirm=true and confirm_token.
+        The confirm_token is valid for 15 minutes."""
         items = [k.model_dump() for k in keywords]
         return write("add_keywords", customer_id, login_customer_id, confirm, confirm_token,
                      lambda cid, login: writes.plan_add_keywords(ads, cid, login, ad_group_id, items, status))
@@ -214,7 +217,8 @@ def create_server(profile: Profile, ads: Ads | None = None, log_folder: Path | N
     ) -> dict[str, Any]:
         """Set a campaign's bid adjustment for one device, in percent: -20 means bids 20% lower,
         +15 means 15% higher, 0 means no adjustment, -100 excludes the device. Not for Performance Max.
-        First call = dry run. Execute only after the user approved, with confirm=true and confirm_token."""
+        First call = dry run. Execute only after the user approved, with confirm=true and confirm_token.
+        The confirm_token is valid for 15 minutes."""
         return write("set_device_bid_adjustment", customer_id, login_customer_id, confirm, confirm_token,
                      lambda cid, login: writes.plan_device_bid(ads, cid, login, campaign_id, device, adjustment_percent))
 
@@ -235,7 +239,8 @@ def create_server(profile: Profile, ads: Ads | None = None, log_folder: Path | N
         times in 15 minute steps, end may be "24:00"). If the window exists with these exact times its
         adjustment is changed, otherwise a new window is added (overlaps are refused). Times are in the
         account's time zone. Note: once a campaign has any window, ads only run inside its windows.
-        First call = dry run. Execute only after the user approved, with confirm=true and confirm_token."""
+        First call = dry run. Execute only after the user approved, with confirm=true and confirm_token.
+        The confirm_token is valid for 15 minutes."""
         return write("set_ad_schedule_bid_adjustment", customer_id, login_customer_id, confirm, confirm_token,
                      lambda cid, login: writes.plan_schedule_bid(ads, cid, login, campaign_id, list(days), start, end,
                                                                  adjustment_percent))
@@ -252,7 +257,8 @@ def create_server(profile: Profile, ads: Ads | None = None, log_folder: Path | N
         """Set the average daily budget of one campaign, in the account currency (e.g. 45.50).
         Limits from the profile: never above max_daily_budget, at most max_budget_change_percent per step
         (default 50%), no shared budgets. Use show_profile to see the limits.
-        First call = dry run. Execute only after the user approved, with confirm=true and confirm_token."""
+        First call = dry run. Execute only after the user approved, with confirm=true and confirm_token.
+        The confirm_token is valid for 15 minutes."""
         return write("set_campaign_budget", customer_id, login_customer_id, confirm, confirm_token,
                      lambda cid, login: writes.plan_campaign_budget(
                          ads, cid, login, campaign_id, daily_amount,
@@ -273,7 +279,8 @@ def create_server(profile: Profile, ads: Ads | None = None, log_folder: Path | N
         Only the fields you give are changed. headlines (3 to 15, max 30 characters each) and
         descriptions (2 to 4, max 90 characters) REPLACE the whole current list, so include the texts
         you want to keep. Pins are kept for unchanged texts. Google reviews the edited ad again.
-        First call = dry run. Execute only after the user approved, with confirm=true and confirm_token."""
+        First call = dry run. Execute only after the user approved, with confirm=true and confirm_token.
+        The confirm_token is valid for 15 minutes."""
         return write("update_responsive_search_ad", customer_id, login_customer_id, confirm, confirm_token,
                      lambda cid, login: writes.plan_update_rsa(ads, cid, login, ad_id, final_url, headlines, descriptions))
 
@@ -304,7 +311,7 @@ def create_server(profile: Profile, ads: Ads | None = None, log_folder: Path | N
         return write("add_negative_keywords", customer_id, login_customer_id, confirm, confirm_token,
                      lambda cid, login: negatives.plan_add_negative_keywords(
                          ads, cid, login, level, campaign_id, ad_group_id, shared_set_id, items,
-                         profile.max_negative_keywords_per_call), ttl=TOKEN_TTL_SECONDS)
+                         profile.max_negative_keywords_per_call))
 
     @mcp.tool(annotations={**write_hints, "destructiveHint": True})
     def remove_negative_keywords(
@@ -327,7 +334,7 @@ def create_server(profile: Profile, ads: Ads | None = None, log_folder: Path | N
         return write("remove_negative_keywords", customer_id, login_customer_id, confirm, confirm_token,
                      lambda cid, login: negatives.plan_remove_negative_keywords(
                          ads, cid, login, level, campaign_id, ad_group_id, shared_set_id, items,
-                         profile.max_negative_keywords_per_call), ttl=TOKEN_TTL_SECONDS)
+                         profile.max_negative_keywords_per_call))
 
     @mcp.tool(annotations={**write_hints, "idempotentHint": False})
     def manage_negative_keyword_list(
@@ -348,7 +355,7 @@ def create_server(profile: Profile, ads: Ads | None = None, log_folder: Path | N
         The confirm_token is valid for 15 minutes."""
         return write("manage_negative_keyword_list", customer_id, login_customer_id, confirm, confirm_token,
                      lambda cid, login: negatives.plan_manage_negative_keyword_list(
-                         ads, cid, login, action, name, shared_set_id, campaign_id), ttl=TOKEN_TTL_SECONDS)
+                         ads, cid, login, action, name, shared_set_id, campaign_id))
 
     return mcp
 

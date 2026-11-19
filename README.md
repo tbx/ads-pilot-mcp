@@ -30,7 +30,7 @@ Small and local: the server runs on your own machine with your own Google Cloud 
 
 ## Guardrails
 
-1. **Dry run by default.** A write tool first only validates with Google and returns every change with old and new value plus a `confirm_token`. It executes only when called again with `confirm=true` and that token. The token no longer fits if the arguments or the account changed in between.
+1. **Dry run by default.** A write tool first only validates with Google and returns every change with old and new value plus a `confirm_token`. It executes only when called again with `confirm=true` and that token. The token is valid for 15 minutes and no longer fits if the arguments or the account changed in between.
 2. **Allowlist per profile.** Writes go only to `allowed_customer_ids`. Claude cannot change that list.
 3. **One profile per login.** Chosen at startup. Every response names profile and customer ID.
 4. **No deleting.** Only pause and enable. The one exception: removing negative keywords and detaching negative keyword lists, which undoes mistakes. No billing, users or account settings.
