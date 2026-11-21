@@ -10,8 +10,8 @@ login_customer_id: ""                # manager account (MCC) ID, or "" if none
 
 default_customer_id: "123-456-7890"  # account used when none is named
 
-allowed_customer_ids:                # the ONLY accounts Claude may change
-  - "123-456-7890"
+accounts:                            # access level per account, all others are read only:
+  "123-456-7890": standard           #   read_only, standard (daily work) or full (also bid strategies, conversions)
 
 max_daily_budget: 100                # highest daily budget per campaign, in account currency
 max_budget_change_percent: 50        # largest budget change per step, in percent
@@ -20,4 +20,7 @@ allow_campaign_status_change: true  # false = Claude may not pause or enable who
 allow_location_changes: true        # false = Claude may not change location targeting
 max_target_change_percent: 30       # largest change of target CPA or ROAS per step, in percent
 max_target_cpa:                      # highest target CPA, empty = only the percent limit
-max_cpc:                             # highest max CPC for manual bids, empty = no cap
+max_cpc:                             # highest max CPC for manual bids and Maximize clicks, empty = no cap
+allowed_bidding_strategies:          # e.g. [MAXIMIZE_CONVERSIONS, TARGET_SPEND], empty = all supported
+conversion_remove_lookback_days: 90  # remove conversion actions only without conversions in this many days
+max_conversion_actions_per_call: 50  # most conversion actions per call

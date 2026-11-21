@@ -123,7 +123,7 @@ Open `profiles/acme.yaml` in a text editor (e.g. TextEdit). Account IDs are show
 | Line | What to enter |
 |---|---|
 | `default_customer_id` | The account Claude works in when you do not name another one |
-| `allowed_customer_ids` | The **only** accounts Claude may change, one line each. Claude can read every account your login sees, but changes only these. |
+| `accounts` | One line per account Claude may change, with its access level (see below). Claude reads every account your login sees, but changes only these. |
 | `login_customer_id` | Only if you reach the account through a manager account (MCC): the manager account's ID. Otherwise leave `""`. |
 | `max_daily_budget` | The highest daily budget Claude may set for a campaign, in the account currency. Remove the line to switch budget changes off. |
 | `max_budget_change_percent` | The largest budget change per step, in percent (default 50). |
@@ -132,7 +132,27 @@ Open `profiles/acme.yaml` in a text editor (e.g. TextEdit). Account IDs are show
 | `allow_location_changes` | `false` stops Claude from changing location targeting (default `true`). |
 | `max_target_change_percent` | The largest change of a target CPA or ROAS per step, in percent (default 30). |
 | `max_target_cpa` | The highest target CPA Claude may set. Empty = only the percent limit. |
-| `max_cpc` | The highest max CPC for manual bids. Empty = no cap (Claude then warns above double the current bid). |
+| `max_cpc` | The highest max CPC for manual bids, and the required cap for Maximize clicks. Empty = no cap (Claude then warns above double the current bid). |
+| `allowed_bidding_strategies` | Optional list, e.g. `[MAXIMIZE_CONVERSIONS, TARGET_SPEND]`: the only strategies Claude may switch to. Empty = all supported. |
+| `conversion_remove_lookback_days` | Conversion actions are removed only if they had no conversions in this many days (default 90). |
+| `max_conversion_actions_per_call` | The most conversion actions per call (default 50). |
+
+**Access levels.** Modelled on the levels in Google Ads (Admin, Standard, Read only):
+
+| Level | What Claude may do |
+|---|---|
+| `read_only` | Read and report only. Every account that is not listed has this level. |
+| `standard` | The daily work: pause and enable, keywords, negative keywords, ad and asset texts, bids and targets, budgets, locations and languages. |
+| `full` | Everything in `standard`, plus switching bid strategies and changing or removing conversion actions. |
+
+```yaml
+accounts:
+  "123-456-7890": full        # my own account
+  "234-567-8901": standard    # client A, daily care
+  "345-678-9012": read_only   # client B, reports only
+```
+
+Claude cannot change these levels. To change one, edit the file and restart Claude Desktop (Cmd+Q). The limits below apply at every level. Older profiles with `allowed_customer_ids` keep working: those accounts count as `full`.
 
 **Manager account or not?** In Google Ads, click the account name at the top right. If you first see a manager account with the client accounts below it, you use an MCC. Not sure? Leave it empty; the test in step 5 lists every account your login can see.
 

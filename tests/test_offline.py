@@ -142,6 +142,8 @@ def test_tools_are_registered(profile):
         "update_asset_group_text_assets", "set_search_themes", "set_brand_exclusions",
         "set_bidding_target", "set_keyword_bid", "revert_change",
         "describe_resource", "campaign_overview", "search_terms_report", "pmax_channel_report", "targeting_overview",
+        "set_bidding_strategy", "list_conversion_actions", "set_conversion_action_status",
+        "set_conversion_action_settings",
     }
 
 

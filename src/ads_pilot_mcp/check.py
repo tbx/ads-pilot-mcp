@@ -27,7 +27,8 @@ def main() -> None:
     print(f"Profile:           {profile.name}")
     print(f"Default account:   {format_customer_id(profile.default_customer_id) if profile.default_customer_id else '-'}")
     print(f"Manager (login):   {format_customer_id(profile.login_customer_id) if profile.login_customer_id else '-'}")
-    print(f"May change:        {', '.join(sorted(format_customer_id(c) for c in profile.allowed_customer_ids)) or '-'}")
+    levels = profile.writable_accounts()
+    print(f"May change:        {', '.join(f'{c} ({lv})' for c, lv in levels.items()) or '- (all accounts read_only)'}")
 
     ads = Ads(profile)
     try:
@@ -53,7 +54,7 @@ def main() -> None:
         if profile.is_write_allowed(cid):
             check_write_access(ads, cid, profile.login_customer_id)
         else:
-            print(f"SKIP write check:  {format_customer_id(cid)} is not in allowed_customer_ids")
+            print(f"SKIP write check:  {format_customer_id(cid)} is read_only in this profile")
 
     print("All good. Nothing was changed.")
 

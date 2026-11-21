@@ -27,14 +27,14 @@ Agencies face one more risk that hardly any tool guards against on purpose: **a 
 | **Small** | A few tools for day-to-day account management. Claude reliably picks the right one, and the context stays free for the actual work. |
 | **Local** | Runs on your own machine with your own Google Cloud project. No service in between, no data with third parties. |
 | **Auditable** | The whole codebase can be read in an hour. Whoever runs it knows what it does. |
-| **Guardrails** | A dry run before every change, an allowlist per profile, no deleting, a log with old and new values. |
+| **Guardrails** | A dry run before every change, an access level per account, no deleting of campaigns, ads or keywords, a log with old and new values. |
 
 ## The guardrails in detail
 
 1. **Dry run by default.** Every change is validated first and shows the old and the new value. It only runs after explicit confirmation, within 15 minutes of the dry run.
-2. **Allowlist per profile.** Write access only to accounts listed in the profile. Claude cannot change that list.
+2. **Access level per account.** Like in Google Ads: read only, standard (the daily work) or full (also bid strategies and conversion actions). Accounts not listed are read only. Claude cannot change the levels.
 3. **One profile per client.** The profile is chosen at startup. Every response names the profile and the customer ID.
-4. **No deleting.** Campaigns, ad groups, ads and keywords are only paused. Removing works only for things you can add back, such as negative keywords or locations. Every logged change can be undone with one call.
+4. **No deleting.** Campaigns, ad groups, ads and keywords are only paused. Removing works only for things you can add back, such as negative keywords or locations. The one final removal: conversion actions without data, at level full. Every other logged change can be undone with one call.
 5. **No sensitive areas.** No billing, users or account settings. Campaign budgets only up to a cap per profile and in limited steps.
 6. **A complete change log.** Every executed change with time, profile, account, object, old and new value. Easy to show to the client and to reverse by hand if needed.
 
@@ -51,6 +51,8 @@ Agencies face one more risk that hardly any tool guards against on purpose: **a 
 - Negative keywords on campaign, ad group, list and account level, also for Performance Max
 - Location and language targeting, Search partners and Display network
 - Target CPA and target ROAS, max CPC for manual bids
+- Switch bid strategies (level full)
+- Conversion actions: list, enable, remove unused ones, primary or secondary, value, counting, windows (level full)
 - Performance Max: text assets, search themes, brand exclusions
 - Undo any logged change with one call
 - Ready-made reports: campaigns, search terms (incl. Performance Max), Performance Max channels, targeting
@@ -87,13 +89,13 @@ ads-pilot-mcp deliberately chooses less scope, calm over speed, and protection a
 
 **GitHub description (one line)**
 
-> Local MCP server for Google Ads with dry runs, an account allowlist and a change log.
+> Local MCP server for Google Ads with dry runs, access levels per account and a change log.
 
 **Short intro for the README (English)**
 
-> **ads-pilot-mcp** lets Claude work in Google Ads accounts without touching the web interface: report, pause or enable keywords and ads, add keywords, adjust bids by device and time of day, refine ad copy.
+> **ads-pilot-mcp** lets Claude work in Google Ads accounts without touching the web interface: report, pause or enable keywords and ads, add keywords, adjust bids and bid strategies, refine ad copy, tidy up conversion actions.
 >
-> Built for anyone who manages several client accounts. Every change starts as a dry run showing the old and the new value. It only runs after confirmation, and only in accounts the profile allows. Everything goes into a change log. Budgets change only within the limits you set per profile; deleting and billing are deliberately out of reach.
+> Built for anyone who manages several client accounts. Every change starts as a dry run showing the old and the new value. It only runs after confirmation, and only within the access level the profile sets per account. Everything goes into a change log. Budgets change only within the limits you set per profile; deleting campaigns, ads or keywords and billing are deliberately out of reach.
 >
 > Small and local: the server runs on your own machine with your own Google Cloud project, and the code is quick to read.
 >

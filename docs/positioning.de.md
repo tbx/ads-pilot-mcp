@@ -27,14 +27,14 @@ Für Agenturen kommt ein Risiko dazu, das kaum ein Werkzeug gezielt abfängt: **
 | **Klein** | Wenige Werkzeuge für die tägliche Kontobetreuung. Claude wählt zuverlässig das richtige aus, und der Kontext bleibt frei für die eigentliche Arbeit. |
 | **Lokal** | Läuft auf dem eigenen Rechner, mit dem eigenen Google-Cloud-Projekt. Kein Dienst dazwischen, keine Daten bei Dritten. |
 | **Nachprüfbar** | Der ganze Code ist in einer Stunde gelesen. Wer ihn einsetzt, weiß, was er tut. |
-| **Leitplanken** | Probelauf vor jeder Änderung, Freigabeliste pro Profil, kein Löschen, Protokoll mit altem und neuem Wert. |
+| **Leitplanken** | Probelauf vor jeder Änderung, Zugriffsstufe pro Konto, kein Löschen von Kampagnen, Anzeigen oder Keywords, Protokoll mit altem und neuem Wert. |
 
 ## Die Leitplanken im Detail
 
 1. **Probelauf ist Standard.** Jede Änderung wird zuerst nur geprüft und zeigt alten und neuen Wert. Ausgeführt wird erst nach ausdrücklicher Bestätigung, innerhalb von 15 Minuten nach dem Probelauf.
-2. **Freigabeliste pro Profil.** Schreibzugriff gibt es nur auf Konten, die im Profil stehen. Claude kann diese Liste nicht ändern.
+2. **Zugriffsstufe pro Konto.** Wie bei Google Ads: nur lesen, Standard (die tägliche Arbeit) oder voll (auch Gebotsstrategien und Conversion-Aktionen). Nicht eingetragene Konten sind nur lesbar. Claude kann die Stufen nicht ändern.
 3. **Ein Profil pro Kunde.** Das Profil wird beim Start festgelegt. Jede Antwort nennt Profil und Kunden-ID.
-4. **Kein Löschen.** Kampagnen, Anzeigengruppen, Anzeigen und Keywords werden nur pausiert. Entfernen geht nur bei Dingen, die man wieder hinzufügen kann, etwa negative Keywords oder Standorte. Jede protokollierte Änderung lässt sich mit einem Aufruf zurücknehmen.
+4. **Kein Löschen.** Kampagnen, Anzeigengruppen, Anzeigen und Keywords werden nur pausiert. Entfernen geht nur bei Dingen, die man wieder hinzufügen kann, etwa negative Keywords oder Standorte. Einzige endgültige Ausnahme: Conversion-Aktionen ohne Daten, in der Stufe voll. Jede andere protokollierte Änderung lässt sich mit einem Aufruf zurücknehmen.
 5. **Keine heiklen Bereiche.** Keine Abrechnung, Nutzer oder Kontoeinstellungen. Kampagnenbudgets nur bis zu einer Obergrenze pro Profil und in begrenzten Schritten.
 6. **Lückenloses Protokoll.** Jede ausgeführte Änderung mit Zeit, Profil, Konto, Objekt, altem und neuem Wert. So lässt sie sich gegenüber dem Kunden belegen und bei Bedarf von Hand zurücknehmen.
 
@@ -51,6 +51,8 @@ Für Agenturen kommt ein Risiko dazu, das kaum ein Werkzeug gezielt abfängt: **
 - Negative Keywords auf Kampagnen-, Anzeigengruppen-, Listen- und Kontoebene, auch für Performance Max
 - Standort- und Sprachausrichtung, Suchnetzwerk-Partner und Displaynetzwerk
 - Ziel-CPA und Ziel-ROAS, max. CPC bei manuellen Geboten
+- Gebotsstrategie wechseln (Stufe voll)
+- Conversion-Aktionen: auflisten, aktivieren, ungenutzte entfernen, primär oder sekundär, Wert, Zählweise, Zeiträume (Stufe voll)
 - Performance Max: Text-Assets, Suchthemen, Marken-Ausschlüsse
 - Jede protokollierte Änderung mit einem Aufruf zurücknehmen
 - Fertige Berichte: Kampagnen, Suchbegriffe (auch Performance Max), Performance-Max-Kanäle, Ausrichtung
@@ -87,13 +89,13 @@ ads-pilot-mcp setzt bewusst auf weniger Umfang, auf Ruhe statt Tempo und auf Sch
 
 **GitHub-Beschreibung (Englisch, eine Zeile)**
 
-> Local MCP server for Google Ads with dry runs, an account allowlist and a change log.
+> Local MCP server for Google Ads with dry runs, access levels per account and a change log.
 
 **Mini-Intro für die README**
 
-> **ads-pilot-mcp** lässt Claude in Google-Ads-Konten arbeiten, ohne die Weboberfläche zu bedienen: auswerten, Keywords und Anzeigen pausieren oder aktivieren, Keywords ergänzen, Gebote nach Gerät und Uhrzeit anpassen, Anzeigentexte überarbeiten.
+> **ads-pilot-mcp** lässt Claude in Google-Ads-Konten arbeiten, ohne die Weboberfläche zu bedienen: auswerten, Keywords und Anzeigen pausieren oder aktivieren, Keywords ergänzen, Gebote und Gebotsstrategien anpassen, Anzeigentexte überarbeiten, Conversion-Aktionen aufräumen.
 >
-> Gebaut für alle, die mehrere Kundenkonten betreuen. Jede Änderung startet als Probelauf mit altem und neuem Wert. Ausgeführt wird erst nach Bestätigung und nur in Konten, die im Profil freigegeben sind. Alles landet in einem Änderungsprotokoll. Budgets ändern sich nur innerhalb der Grenzen, die Sie pro Profil festlegen; Löschen und Abrechnung sind bewusst nicht möglich.
+> Gebaut für alle, die mehrere Kundenkonten betreuen. Jede Änderung startet als Probelauf mit altem und neuem Wert. Ausgeführt wird erst nach Bestätigung und nur im Rahmen der Zugriffsstufe, die das Profil pro Konto festlegt. Alles landet in einem Änderungsprotokoll. Budgets ändern sich nur innerhalb der Grenzen, die Sie pro Profil festlegen; Löschen von Kampagnen, Anzeigen oder Keywords und die Abrechnung sind bewusst nicht möglich.
 >
 > Klein und lokal: Der Server läuft auf dem eigenen Rechner mit dem eigenen Google-Cloud-Projekt, und der Code ist schnell gelesen.
 >

@@ -144,7 +144,7 @@ def test_expired_token_is_refused(server, account, monkeypatch):
 
 
 def test_account_outside_allowlist_is_refused(server, account):
-    with pytest.raises(ToolError, match="not in allowed_customer_ids"):
+    with pytest.raises(ToolError, match="read_only"):
         call(server, "add_negative_keywords", **ADD, customer_id="111-222-3333")
     assert account.mutations == []
 

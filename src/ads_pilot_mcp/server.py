@@ -13,7 +13,8 @@ from fastmcp import FastMCP
 from fastmcp.exceptions import ToolError
 from pydantic import BaseModel
 
-from . import bidding, negatives, pmax, reports, revert, targeting, writes
+from . import bidding, conversions, negatives, pmax, reports, revert, targeting, writes
+from . import strategy as bid_strategy
 from .ads import API_VERSION
 from .ads import Ads, AdsError
 from .config import ConfigError, Profile, format_customer_id, load_profile, log_dir
@@ -37,9 +38,11 @@ Changing things always takes two calls:
 2. Only after the user explicitly says yes to exactly these changes, call the same tool
    again with the same arguments, confirm=true and the confirm_token.
 Never set confirm=true on your own initiative. Find IDs with run_gaql first.
-Deleting, billing, users and account settings are not available on purpose; the only removals are
-negative keywords and negative keyword list links (to undo mistakes). Campaign budgets
-only within the profile's max_daily_budget and max_budget_change_percent.
+Each account has an access level in the profile: read_only (reading only), standard (the daily
+work) or full (also bidding strategies and conversion actions). show_profile lists them; only the
+profile file can change them. Campaigns, ad groups, ads and keywords are never deleted, only paused.
+Billing, users and account settings are not available on purpose. Campaign budgets only within the
+profile's max_daily_budget and max_budget_change_percent.
 """
 
 Status = Literal["PAUSED", "ENABLED"]
@@ -95,13 +98,18 @@ def create_server(profile: Profile, ads: Ads | None = None, log_folder: Path | N
 
     @mcp.tool(annotations={"readOnlyHint": True})
     def show_profile() -> dict[str, Any]:
-        """Show the active profile: default account, manager account and the accounts it may change."""
+        """Show the active profile: default account, manager account, the access level per account
+        (read_only, standard, full) and all limits. Accounts not listed are read_only."""
         log.info("profile=%s customer=%s tool=show_profile", profile.name, profile.default_customer_id or "-")
         return {
             "profile": profile.name,
             "customer_id": format_customer_id(profile.default_customer_id) if profile.default_customer_id else None,
             "login_customer_id": format_customer_id(profile.login_customer_id) if profile.login_customer_id else None,
-            "writable_customer_ids": sorted(format_customer_id(c) for c in profile.allowed_customer_ids),
+            "account_levels": profile.writable_accounts(),
+            "levels": {"read_only": "reading and reports only",
+                       "standard": "daily work: status, keywords, negatives, ad and asset texts, bids, budgets, "
+                                   "targeting",
+                       "full": "standard plus bidding strategy changes and conversion actions"},
             "max_daily_budget": profile.max_daily_budget,
             "max_budget_change_percent": profile.max_budget_change_percent,
             "max_negative_keywords_per_call": profile.max_negative_keywords_per_call,
@@ -110,12 +118,16 @@ def create_server(profile: Profile, ads: Ads | None = None, log_folder: Path | N
             "max_target_change_percent": profile.max_target_change_percent,
             "max_target_cpa": profile.max_target_cpa,
             "max_cpc": profile.max_cpc,
+            "allowed_bidding_strategies": sorted(profile.allowed_bidding_strategies)
+            if profile.allowed_bidding_strategies else "all supported",
+            "conversion_remove_lookback_days": profile.conversion_remove_lookback_days,
+            "max_conversion_actions_per_call": profile.max_conversion_actions_per_call,
         }
 
     @mcp.tool(annotations={"readOnlyHint": True})
     def list_accounts() -> dict[str, Any]:
         """List the Google Ads accounts this profile can access, including client accounts
-        directly below a manager account (MCC). 'writable' marks accounts this server may change."""
+        directly below a manager account (MCC). 'access_level' says what this server may do there."""
         log.info("profile=%s customer=- tool=list_accounts", profile.name)
         try:
             ids = ads.list_accessible_customer_ids()
@@ -249,6 +261,21 @@ def create_server(profile: Profile, ads: Ads | None = None, log_folder: Path | N
                       lambda cid, login: reports.targeting_overview(ads, cid, login, campaign_id, include_paused))
 
     @mcp.tool(annotations={"readOnlyHint": True})
+    def list_conversion_actions(
+        include_removed: bool = False,
+        lookback_days: int = 90,
+        customer_id: str | None = None,
+        login_customer_id: str | None = None,
+    ) -> dict[str, Any]:
+        """List the conversion actions of an account: type, category, origin, status, primary or secondary, counting,
+        value, conversion windows, call length, GA4 property and event, conversions and all_conversions in the last
+        lookback_days days, and whether ads-pilot can change it ('mutable'). Plus a summary by status and the goals
+        that have enabled primary actions."""
+        return report("list_conversion_actions", customer_id, login_customer_id,
+                      lambda cid, login: conversions.list_conversion_actions(ads, cid, login, include_removed,
+                                                                             lookback_days))
+
+    @mcp.tool(annotations={"readOnlyHint": True})
     def recent_changes(limit: int = 20) -> dict[str, Any]:
         """Show the latest changes executed by this server (from logs/changes.jsonl), newest first,
         with time, profile, account, object, old and new value. Useful to report or undo by hand."""
@@ -259,11 +286,11 @@ def create_server(profile: Profile, ads: Ads | None = None, log_folder: Path | N
     # ---- write tools: dry run first, execute only with confirm + confirm_token ----
 
     def write(tool, customer_id, login_customer_id, confirm, confirm_token, build,
-              ttl=TOKEN_TTL_SECONDS) -> dict[str, Any]:
+              ttl=TOKEN_TTL_SECONDS, level=None) -> dict[str, Any]:
         cid, login = resolve(customer_id, login_customer_id, tool)
         log.info("profile=%s customer=%s tool=%s %s", profile.name, cid, tool, "EXECUTE" if confirm else "dry run")
         try:
-            result = writer.run(tool, cid, login, lambda: build(cid, login), bool(confirm), confirm_token, ttl)
+            result = writer.run(tool, cid, login, lambda: build(cid, login), bool(confirm), confirm_token, ttl, level)
         except (WriteRefused, AdsError) as e:
             raise fail(tool, cid, e) from e
         if login:
@@ -631,6 +658,95 @@ def create_server(profile: Profile, ads: Ads | None = None, log_folder: Path | N
                      lambda cid, login: bidding.plan_keyword_bid(ads, cid, login, object_type, ids, max_cpc,
                                                                  profile.max_cpc))
 
+    @mcp.tool(annotations=write_hints)
+    def set_bidding_strategy(
+        campaign_id: str,
+        strategy: Literal["MAXIMIZE_CONVERSIONS", "MAXIMIZE_CONVERSION_VALUE", "TARGET_SPEND", "MANUAL_CPC",
+                          "TARGET_IMPRESSION_SHARE"],
+        target_cpa: float | None = None,
+        target_roas_percent: float | None = None,
+        cpc_bid_ceiling: float | None = None,
+        impression_share_location: Literal["ANYWHERE_ON_PAGE", "TOP_OF_PAGE", "ABSOLUTE_TOP_OF_PAGE"] | None = None,
+        impression_share_percent: float | None = None,
+        customer_id: str | None = None,
+        login_customer_id: str | None = None,
+        confirm: bool = False,
+        confirm_token: str | None = None,
+    ) -> dict[str, Any]:
+        """Switch the bid strategy of one campaign (standard strategies only, never portfolio strategies).
+        MAXIMIZE_CONVERSIONS (optional target_cpa in account currency), MAXIMIZE_CONVERSION_VALUE (optional
+        target_roas_percent, e.g. 400), TARGET_SPEND = "Maximize clicks" (optional cpc_bid_ceiling), MANUAL_CPC,
+        TARGET_IMPRESSION_SHARE (impression_share_location, impression_share_percent, optional cpc_bid_ceiling).
+        Search campaigns: all of these. Performance Max: only the two Maximize conversion strategies.
+        Needs access level full. The dry run shows old and new strategy with all values and warns about the learning
+        phase, few conversions, missing CPC caps and recent bidding changes. Profile limits: max_target_cpa, max_cpc
+        (then cpc_bid_ceiling is required), allowed_bidding_strategies. To only change a target, use set_bidding_target.
+        First call = dry run. Execute only after the user approved, with confirm=true and confirm_token.
+        The confirm_token is valid for 15 minutes."""
+        return write("set_bidding_strategy", customer_id, login_customer_id, confirm, confirm_token,
+                     lambda cid, login: bid_strategy.plan_bidding_strategy(
+                         ads, cid, login, campaign_id, strategy, target_cpa, target_roas_percent, cpc_bid_ceiling,
+                         impression_share_location, impression_share_percent, profile, writer.recent_changes(500)))
+
+    # ---- conversion actions (access level full) ----
+
+    @mcp.tool(annotations={**write_hints, "destructiveHint": True})
+    def set_conversion_action_status(
+        conversion_action_ids: list[str],
+        status: Literal["ENABLED", "REMOVED", "HIDDEN"],
+        allow_goal_loss: bool = False,
+        customer_id: str | None = None,
+        login_customer_id: str | None = None,
+        confirm: bool = False,
+        confirm_token: str | None = None,
+    ) -> dict[str, Any]:
+        """Enable or remove conversion actions (IDs from list_conversion_actions). Needs access level full.
+        Hiding is not possible through the API: hide in Google Ads, or make the action secondary with
+        set_conversion_action_settings. REMOVED is final and cannot be reverted; it is only allowed when the action had
+        no conversions in the last conversion_remove_lookback_days days (profile, default 90).
+        Universal Analytics actions cannot be changed through the API (remove them in Google Ads). If a smart bidding campaign would
+        lose its last primary action for a goal, this is blocked unless allow_goal_loss=true. Google-owned actions
+        are refused. Good changes go through even if single ones fail.
+        First call = dry run. Execute only after the user approved, with confirm=true and confirm_token.
+        The confirm_token is valid for 15 minutes."""
+        return write("set_conversion_action_status", customer_id, login_customer_id, confirm, confirm_token,
+                     lambda cid, login: conversions.plan_conversion_status(
+                         ads, cid, login, conversion_action_ids, status, allow_goal_loss, profile))
+
+    @mcp.tool(annotations=write_hints)
+    def set_conversion_action_settings(
+        conversion_action_id: str,
+        primary_for_goal: bool | None = None,
+        default_value: float | None = None,
+        always_use_default_value: bool | None = None,
+        counting_type: Literal["ONE_PER_CLICK", "MANY_PER_CLICK"] | None = None,
+        click_through_lookback_window_days: int | None = None,
+        view_through_lookback_window_days: int | None = None,
+        phone_call_duration_seconds: int | None = None,
+        allow_goal_loss: bool = False,
+        customer_id: str | None = None,
+        login_customer_id: str | None = None,
+        confirm: bool = False,
+        confirm_token: str | None = None,
+    ) -> dict[str, Any]:
+        """Change settings of one conversion action; give only the settings that should change. primary_for_goal
+        (primary = used for bidding, secondary = only reported), default_value in account currency,
+        always_use_default_value, counting_type, click_through_lookback_window_days (1-90),
+        view_through_lookback_window_days (1-30), phone_call_duration_seconds (call actions AD_CALL / WEBSITE_CALL only).
+        For GA4 imports, counting_type and the click-through window come from GA4 and cannot be changed here.
+        Needs access level full. Making the last primary action of a goal secondary is blocked for smart bidding
+        campaigns unless allow_goal_loss=true. Past conversions are not recalculated.
+        First call = dry run. Execute only after the user approved, with confirm=true and confirm_token.
+        The confirm_token is valid for 15 minutes."""
+        values = {"primary_for_goal": primary_for_goal, "default_value": default_value,
+                  "always_use_default_value": always_use_default_value, "counting_type": counting_type,
+                  "click_through_lookback_window_days": click_through_lookback_window_days,
+                  "view_through_lookback_window_days": view_through_lookback_window_days,
+                  "phone_call_duration_seconds": phone_call_duration_seconds}
+        return write("set_conversion_action_settings", customer_id, login_customer_id, confirm, confirm_token,
+                     lambda cid, login: conversions.plan_conversion_settings(
+                         ads, cid, login, conversion_action_id, values, allow_goal_loss, profile))
+
     # ---- undo (priority 6 of the extension brief) ----
 
     @mcp.tool(annotations=write_hints)
@@ -659,7 +775,9 @@ def create_server(profile: Profile, ads: Ads | None = None, log_folder: Path | N
                               "original_tool": entry.get("original_tool") or entry.get("tool")}
             return plan
 
-        return write("revert_change", entry["customer_id"], None, confirm, confirm_token, build)
+        original = entry.get("original_tool") or entry.get("tool")
+        return write("revert_change", entry["customer_id"], None, confirm, confirm_token, build,
+                     level=writes.required_level(original))
 
     return mcp
 
@@ -678,7 +796,8 @@ FROM customer_client WHERE customer_client.level = 1
 
 
 def _describe_account(ads: Ads, profile: Profile, cid: str) -> dict[str, Any]:
-    entry: dict[str, Any] = {"customer_id": format_customer_id(cid), "writable": profile.is_write_allowed(cid)}
+    entry: dict[str, Any] = {"customer_id": format_customer_id(cid), "writable": profile.is_write_allowed(cid),
+                             "access_level": profile.level_for(cid)}
     try:
         rows, _ = ads.search(cid, ACCOUNT_QUERY, login_customer_id=cid, max_rows=1)
     except AdsError as e:
@@ -710,6 +829,7 @@ def _describe_account(ads: Ads, profile: Profile, cid: str) -> dict[str, Any]:
                     "currency": c.get("customer_client.currency_code"),
                     "login_customer_id": format_customer_id(cid),
                     "writable": profile.is_write_allowed(str(c["customer_client.id"])),
+                    "access_level": profile.level_for(str(c["customer_client.id"])),
                 }
                 for c in clients
             ]

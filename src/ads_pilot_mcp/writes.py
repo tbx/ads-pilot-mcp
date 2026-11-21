@@ -11,9 +11,10 @@ Every write follows the same two calls:
    the live account. Only if it is identical to the dry run (same token) is it
    sent for real, and every change is written to logs/changes.jsonl.
 
-Guardrails: writes only for customer IDs in the profile's allowlist, no
-delete operations exist, no billing, users or account settings. Campaign
-budgets only up to the profile's max_daily_budget and in limited steps.
+Guardrails: writes only for accounts whose access level in the profile allows the tool
+(read_only / standard / full), no deletes of campaigns, ad groups, ads or keywords, no billing,
+users or account settings. Campaign budgets only up to the profile's max_daily_budget and in
+limited steps.
 """
 
 from __future__ import annotations
@@ -33,7 +34,7 @@ from typing import Any, Callable
 from google.protobuf.field_mask_pb2 import FieldMask
 
 from .ads import Ads, MutateResult
-from .config import Profile, format_customer_id
+from .config import LEVELS, Profile, format_customer_id
 
 MAX_ITEMS = 50
 TOKEN_TTL_SECONDS = 15 * 60  # confirm tokens of tools that use expiry are valid this long
@@ -41,6 +42,14 @@ HEADLINE_LIMITS = (3, 15, 30)  # min count, max count, max characters
 DESCRIPTION_LIMITS = (2, 4, 90)
 DAYS = ("MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY", "SUNDAY")
 MINUTES = {0: "ZERO", 15: "FIFTEEN", 30: "THIRTY", 45: "FORTY_FIVE"}
+
+
+# Tools that need the access level "full". Every other write tool needs "standard".
+FULL_LEVEL_TOOLS = {"set_bidding_strategy", "set_conversion_action_status", "set_conversion_action_settings"}
+
+
+def required_level(tool: str) -> str:
+    return "full" if tool in FULL_LEVEL_TOOLS else "standard"
 
 
 class WriteRefused(Exception):
@@ -91,14 +100,21 @@ class Writer:
         confirm: bool,
         confirm_token: str | None,
         ttl: int | None = TOKEN_TTL_SECONDS,
+        level: str | None = None,
     ) -> dict[str, Any]:
-        """Dry run or execute one plan. The confirm_token expires after ttl seconds (default 15 minutes)."""
+        """Dry run or execute one plan. The confirm_token expires after ttl seconds (default 15 minutes).
+        level: the access level this write needs (default: from the tool name)."""
         where = {"profile": self.profile.name, "customer_id": format_customer_id(customer_id)}
-        if not self.profile.is_write_allowed(customer_id):
+        need = level or required_level(tool)
+        have = self.profile.level_for(customer_id)
+        if have == "read_only":
             raise WriteRefused(
-                f"Account {format_customer_id(customer_id)} is not in allowed_customer_ids of profile "
-                f"'{self.profile.name}'. Writing is refused. Reading still works."
-            )
+                f"Account {format_customer_id(customer_id)} is read_only in profile '{self.profile.name}' (not listed "
+                "under accounts). Writing is refused. Reading still works.")
+        if LEVELS.index(have) < LEVELS.index(need):
+            raise WriteRefused(
+                f"Account {format_customer_id(customer_id)} has the access level {have} in profile "
+                f"'{self.profile.name}'. This change needs {need}. Only the profile file can change that.")
 
         plan = build()
         if not plan.changes:

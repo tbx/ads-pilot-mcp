@@ -11,8 +11,8 @@ A profile file looks like this (see profiles/example.yaml):
       # or instead: json_key_file_path: /path/to/service-account.json
     login_customer_id: ""      # optional, manager account (MCC) ID
     default_customer_id: "123-456-7890"
-    allowed_customer_ids:      # accounts this server may change
-      - "123-456-7890"
+    accounts:                  # access level per account: read_only, standard or full
+      "123-456-7890": standard
     max_daily_budget: 100      # optional, highest daily budget per campaign
     max_budget_change_percent: 50   # optional, largest change per step
 """
@@ -40,6 +40,12 @@ AUTH_KEYS = {
     "impersonated_email",
     "use_application_default_credentials",
 }
+
+
+# Access levels, modelled on Google Ads' own (read only, standard, admin):
+# read_only: reading and reports only. standard: the daily work (status, keywords, negatives, ad texts,
+# Performance Max texts, bids, budgets, targeting). full: also bidding strategy and conversion action changes.
+LEVELS = ("read_only", "standard", "full")
 
 
 class ConfigError(Exception):
@@ -77,6 +83,11 @@ class Profile:
     max_target_change_percent: float = 30.0
     max_target_cpa: float | None = None
     max_cpc: float | None = None
+    # Access level per account (normalized ID -> level). Accounts in allowed_customer_ids (older profiles) are full.
+    account_levels: dict[str, str] = field(default_factory=dict)
+    allowed_bidding_strategies: frozenset[str] | None = None  # None = all supported strategies
+    conversion_remove_lookback_days: int = 90
+    max_conversion_actions_per_call: int = 50
 
     def resolve_customer_id(self, customer_id: str | None) -> str:
         return normalize_customer_id(customer_id or self.default_customer_id)
@@ -85,8 +96,19 @@ class Profile:
         value = login_customer_id or self.login_customer_id
         return normalize_customer_id(value) if value else None
 
+    def level_for(self, customer_id: str) -> str:
+        cid = normalize_customer_id(customer_id)
+        if cid in self.account_levels:
+            return self.account_levels[cid]
+        return "full" if cid in self.allowed_customer_ids else "read_only"
+
     def is_write_allowed(self, customer_id: str) -> bool:
-        return normalize_customer_id(customer_id) in self.allowed_customer_ids
+        return self.level_for(customer_id) != "read_only"
+
+    def writable_accounts(self) -> dict[str, str]:
+        """Formatted account ID -> level, for every account that is not read_only."""
+        ids = set(self.allowed_customer_ids) | set(self.account_levels)
+        return {format_customer_id(c): self.level_for(c) for c in sorted(ids) if self.level_for(c) != "read_only"}
 
 
 def profiles_dir() -> Path:
@@ -141,6 +163,20 @@ def load_profile(name: str | None = None) -> Profile:
             raise ConfigError(f"{key} in {path.name} must be true or false, got '{value}'.")
         return value
 
+    levels: dict[str, str] = {}
+    accounts = data.get("accounts") or {}
+    if not isinstance(accounts, dict):
+        raise ConfigError(f"accounts in {path.name} must map account IDs to a level, e.g. \"123-456-7890\": standard.")
+    for key, level in accounts.items():
+        level = str(level or "").strip().lower()
+        if level not in LEVELS:
+            raise ConfigError(f"Level of account {key} in {path.name} must be one of {', '.join(LEVELS)}, got '{level}'.")
+        levels[normalize_customer_id(key)] = level
+
+    strategies = data.get("allowed_bidding_strategies")
+    if strategies not in (None, "") and not isinstance(strategies, list):
+        raise ConfigError(f"allowed_bidding_strategies in {path.name} must be a list, e.g. [MAXIMIZE_CONVERSIONS].")
+
     return Profile(
         name=name,
         auth=dict(auth),
@@ -155,4 +191,8 @@ def load_profile(name: str | None = None) -> Profile:
         max_target_change_percent=optional_number("max_target_change_percent") or 30.0,
         max_target_cpa=optional_number("max_target_cpa"),
         max_cpc=optional_number("max_cpc"),
+        account_levels=levels,
+        allowed_bidding_strategies=frozenset(str(s).strip().upper() for s in strategies) if strategies else None,
+        conversion_remove_lookback_days=int(optional_number("conversion_remove_lookback_days") or 90),
+        max_conversion_actions_per_call=int(optional_number("max_conversion_actions_per_call") or 50),
     )

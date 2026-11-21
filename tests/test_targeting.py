@@ -119,7 +119,7 @@ def test_wrong_token_and_other_account_are_refused(server, account, tool, args):
     call(server, tool, **args)
     with pytest.raises(ToolError, match="confirm_token"):
         call(server, tool, **args, confirm=True, confirm_token="1.abc")
-    with pytest.raises(ToolError, match="not in allowed_customer_ids"):
+    with pytest.raises(ToolError, match="read_only"):
         call(server, tool, **args, customer_id="111-222-3333")
     assert all(v for v, *_ in account.mutations)
 

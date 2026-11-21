@@ -13,7 +13,7 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from . import bidding, negatives, pmax, targeting, writes
+from . import bidding, conversions, negatives, pmax, strategy, targeting, writes
 from .ads import Ads
 from .config import Profile
 from .writes import Plan, WriteRefused
@@ -202,6 +202,25 @@ def plan_revert(ads: Ads, cid: str, login: str | None, entry: dict, profile: Pro
         roas = _number(old) if field == "target_roas" else None
         plan = bidding.plan_bidding_target(ads, cid, login, oid, cpa, roas, float("inf"), None)
         return _expect_current(plan, entry)
+
+    if tool == "set_bidding_strategy":
+        if not isinstance(old, dict) or not isinstance(new, dict):
+            raise WriteRefused("This entry lacks the strategy details needed to revert it.")
+        args = strategy.revert_arguments(old)
+        plan = strategy.plan_bidding_strategy(ads, cid, login, oid, **args, profile=profile, logged=[], is_revert=True)
+        if not plan.changes:
+            raise WriteRefused("Nothing to revert: the campaign already uses the old strategy with the old values.")
+        current = plan.changes[0].old
+        if current != new:
+            raise WriteRefused(f"Not reverted: the strategy changed since. Logged new state: {new}. Current state: "
+                               f"{current}. Check in Google Ads and change it by hand if needed.")
+        if old.get("strategy") in ("TARGET_CPA", "TARGET_ROAS"):
+            plan.warnings.append(f"The old strategy {old['strategy']} comes back as {args['strategy']} with the same "
+                                 "target, which is how Google offers it today.")
+        return plan
+
+    if tool in conversions.TOOLS:
+        return conversions.plan_revert(ads, cid, login, entry, profile)
 
     if tool == "set_keyword_bid":
         if str(old).startswith("ad group default"):

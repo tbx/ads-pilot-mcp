@@ -178,7 +178,7 @@ def test_token_is_invalid_when_account_changed_meanwhile(server, account):
 # ---- guardrails ------------------------------------------------------------
 
 def test_write_to_account_outside_allowlist_is_refused(server, account):
-    with pytest.raises(ToolError, match="not in allowed_customer_ids"):
+    with pytest.raises(ToolError, match="read_only"):
         call(server, "set_status", **PAUSE, customer_id="111-222-3333")
     assert account.mutations == []
 
