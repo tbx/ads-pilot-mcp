@@ -51,7 +51,7 @@ Für Agenturen kommt ein Risiko dazu, das kaum ein Werkzeug gezielt abfängt: **
 - Negative Keywords auf Kampagnen-, Anzeigengruppen-, Listen- und Kontoebene, auch für Performance Max
 - Standort- und Sprachausrichtung, Suchnetzwerk-Partner und Displaynetzwerk
 - Ziel-CPA und Ziel-ROAS, max. CPC bei manuellen Geboten
-- Gebotsstrategie wechseln (Stufe voll)
+- Gebotsstrategie wechseln, auch als gemeinsame Strategie mehrerer Kampagnen mit getrennten Budgets (Stufe voll)
 - Conversion-Aktionen: auflisten, aktivieren, ungenutzte entfernen, primär oder sekundär, Wert, Zählweise, Zeiträume (Stufe voll)
 - Performance Max: Text-Assets, Suchthemen, Marken-Ausschlüsse
 - Jede protokollierte Änderung mit einem Aufruf zurücknehmen

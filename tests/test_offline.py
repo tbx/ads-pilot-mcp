@@ -143,7 +143,7 @@ def test_tools_are_registered(profile):
         "set_bidding_target", "set_keyword_bid", "revert_change",
         "describe_resource", "campaign_overview", "search_terms_report", "pmax_channel_report", "targeting_overview",
         "set_bidding_strategy", "list_conversion_actions", "set_conversion_action_status",
-        "set_conversion_action_settings",
+        "set_conversion_action_settings", "list_bidding_strategies", "manage_portfolio_bidding_strategy",
     }
 
 

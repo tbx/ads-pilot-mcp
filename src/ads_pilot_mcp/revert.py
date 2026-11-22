@@ -13,7 +13,7 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from . import bidding, conversions, negatives, pmax, strategy, targeting, writes
+from . import bidding, conversions, negatives, pmax, portfolio, strategy, targeting, writes
 from .ads import Ads
 from .config import Profile
 from .writes import Plan, WriteRefused
@@ -218,6 +218,9 @@ def plan_revert(ads: Ads, cid: str, login: str | None, entry: dict, profile: Pro
             plan.warnings.append(f"The old strategy {old['strategy']} comes back as {args['strategy']} with the same "
                                  "target, which is how Google offers it today.")
         return plan
+
+    if tool == "manage_portfolio_bidding_strategy":
+        return portfolio.plan_revert(ads, cid, login, entry, profile)
 
     if tool in conversions.TOOLS:
         return conversions.plan_revert(ads, cid, login, entry, profile)

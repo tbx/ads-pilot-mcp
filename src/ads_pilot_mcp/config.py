@@ -44,7 +44,7 @@ AUTH_KEYS = {
 
 # Access levels, modelled on Google Ads' own (read only, standard, admin):
 # read_only: reading and reports only. standard: the daily work (status, keywords, negatives, ad texts,
-# Performance Max texts, bids, budgets, targeting). full: also bidding strategy and conversion action changes.
+# Performance Max texts, bids, budgets, targeting). full: also bid strategies, portfolios and conversion actions.
 LEVELS = ("read_only", "standard", "full")
 
 

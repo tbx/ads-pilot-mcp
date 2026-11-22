@@ -143,7 +143,7 @@ Open `profiles/acme.yaml` in a text editor (e.g. TextEdit). Account IDs are show
 |---|---|
 | `read_only` | Read and report only. Every account that is not listed has this level. |
 | `standard` | The daily work: pause and enable, keywords, negative keywords, ad and asset texts, bids and targets, budgets, locations and languages. |
-| `full` | Everything in `standard`, plus switching bid strategies and changing or removing conversion actions. |
+| `full` | Everything in `standard`, plus switching bid strategies, portfolio bid strategies and changing or removing conversion actions. |
 
 ```yaml
 accounts:

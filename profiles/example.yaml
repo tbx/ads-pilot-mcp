@@ -11,7 +11,7 @@ login_customer_id: ""                # manager account (MCC) ID, or "" if none
 default_customer_id: "123-456-7890"  # account used when none is named
 
 accounts:                            # access level per account, all others are read only:
-  "123-456-7890": standard           #   read_only, standard (daily work) or full (also bid strategies, conversions)
+  "123-456-7890": standard           #   read_only, standard (daily work) or full (also bid strategies, portfolios, conversions)
 
 max_daily_budget: 100                # highest daily budget per campaign, in account currency
 max_budget_change_percent: 50        # largest budget change per step, in percent

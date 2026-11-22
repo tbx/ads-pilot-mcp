@@ -13,7 +13,7 @@ from fastmcp import FastMCP
 from fastmcp.exceptions import ToolError
 from pydantic import BaseModel
 
-from . import bidding, conversions, negatives, pmax, reports, revert, targeting, writes
+from . import bidding, conversions, negatives, pmax, portfolio, reports, revert, targeting, writes
 from . import strategy as bid_strategy
 from .ads import API_VERSION
 from .ads import Ads, AdsError
@@ -39,7 +39,7 @@ Changing things always takes two calls:
    again with the same arguments, confirm=true and the confirm_token.
 Never set confirm=true on your own initiative. Find IDs with run_gaql first.
 Each account has an access level in the profile: read_only (reading only), standard (the daily
-work) or full (also bidding strategies and conversion actions). show_profile lists them; only the
+work) or full (also bidding strategies, portfolios and conversion actions). show_profile lists them; only the
 profile file can change them. Campaigns, ad groups, ads and keywords are never deleted, only paused.
 Billing, users and account settings are not available on purpose. Campaign budgets only within the
 profile's max_daily_budget and max_budget_change_percent.
@@ -109,7 +109,7 @@ def create_server(profile: Profile, ads: Ads | None = None, log_folder: Path | N
             "levels": {"read_only": "reading and reports only",
                        "standard": "daily work: status, keywords, negatives, ad and asset texts, bids, budgets, "
                                    "targeting",
-                       "full": "standard plus bidding strategy changes and conversion actions"},
+                       "full": "standard plus bidding strategy changes, portfolio strategies and conversion actions"},
             "max_daily_budget": profile.max_daily_budget,
             "max_budget_change_percent": profile.max_budget_change_percent,
             "max_negative_keywords_per_call": profile.max_negative_keywords_per_call,
@@ -274,6 +274,14 @@ def create_server(profile: Profile, ads: Ads | None = None, log_folder: Path | N
         return report("list_conversion_actions", customer_id, login_customer_id,
                       lambda cid, login: conversions.list_conversion_actions(ads, cid, login, include_removed,
                                                                              lookback_days))
+
+    @mcp.tool(annotations={"readOnlyHint": True})
+    def list_bidding_strategies(customer_id: str | None = None, login_customer_id: str | None = None) -> dict[str, Any]:
+        """List the portfolio bid strategies (shared by several campaigns) of an account: name, ID, type, targets,
+        max CPC, the campaigns using each with their budget, whether a budget is shared (also with campaigns outside
+        the portfolio), and Google's system status per campaign (e.g. learning, misconfigured)."""
+        return report("list_bidding_strategies", customer_id, login_customer_id,
+                      lambda cid, login: portfolio.list_bidding_strategies(ads, cid, login))
 
     @mcp.tool(annotations={"readOnlyHint": True})
     def recent_changes(limit: int = 20) -> dict[str, Any]:
@@ -687,6 +695,46 @@ def create_server(profile: Profile, ads: Ads | None = None, log_folder: Path | N
                      lambda cid, login: bid_strategy.plan_bidding_strategy(
                          ads, cid, login, campaign_id, strategy, target_cpa, target_roas_percent, cpc_bid_ceiling,
                          impression_share_location, impression_share_percent, profile, writer.recent_changes(500)))
+
+    @mcp.tool(annotations={**write_hints, "idempotentHint": False})
+    def manage_portfolio_bidding_strategy(
+        action: Literal["create", "assign", "unassign", "update", "remove"],
+        campaign_ids: list[str] | None = None,
+        portfolio_id: str | None = None,
+        name: str | None = None,
+        strategy: Literal["MAXIMIZE_CONVERSIONS", "MAXIMIZE_CONVERSION_VALUE", "TARGET_CPA", "TARGET_ROAS",
+                          "TARGET_SPEND"] | None = None,
+        target_cpa: float | None = None,
+        target_roas_percent: float | None = None,
+        cpc_bid_ceiling: float | None = None,
+        standard_strategy: Literal["MAXIMIZE_CONVERSIONS", "MAXIMIZE_CONVERSION_VALUE", "TARGET_SPEND", "MANUAL_CPC",
+                                   "TARGET_IMPRESSION_SHARE"] | None = None,
+        impression_share_location: Literal["ANYWHERE_ON_PAGE", "TOP_OF_PAGE", "ABSOLUTE_TOP_OF_PAGE"] | None = None,
+        impression_share_percent: float | None = None,
+        customer_id: str | None = None,
+        login_customer_id: str | None = None,
+        confirm: bool = False,
+        confirm_token: str | None = None,
+    ) -> dict[str, Any]:
+        """Portfolio bid strategies: one strategy shared by several Search campaigns, each keeping its own budget.
+        create: name, strategy (MAXIMIZE_CONVERSIONS with optional target_cpa, MAXIMIZE_CONVERSION_VALUE with optional
+        target_roas_percent, TARGET_CPA, TARGET_ROAS, TARGET_SPEND), optional cpc_bid_ceiling, campaign_ids; creates it
+        and assigns the campaigns in one step. assign: portfolio_id + campaign_ids. unassign: campaign_ids back to
+        standard_strategy (plus its values, as in set_bidding_strategy). update: portfolio_id + new targets (step limit
+        max_target_change_percent, max_target_cpa, max_cpc). remove: portfolio_id, only when no campaign uses it.
+        Never creates or changes shared budgets. Needs access level full. The dry run shows every campaign's old and new
+        strategy and its unchanged budget, and warns about the learning phase, conversions per campaign and in total,
+        recent bidding changes, different conversion goals and budgets shared outside the portfolio.
+        First call = dry run. Execute only after the user approved, with confirm=true and confirm_token.
+        The confirm_token is valid for 15 minutes."""
+        return write("manage_portfolio_bidding_strategy", customer_id, login_customer_id, confirm, confirm_token,
+                     lambda cid, login: portfolio.plan_portfolio(
+                         ads, cid, login, action, profile, writer.recent_changes(500), name=name,
+                         portfolio_id=portfolio_id, strategy_type=strategy, target_cpa=target_cpa,
+                         target_roas_percent=target_roas_percent, cpc_bid_ceiling=cpc_bid_ceiling,
+                         campaign_ids=campaign_ids, standard_strategy=standard_strategy,
+                         impression_share_location=impression_share_location,
+                         impression_share_percent=impression_share_percent))
 
     # ---- conversion actions (access level full) ----
 

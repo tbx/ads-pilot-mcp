@@ -120,6 +120,68 @@ def last_bidding_change(ads: Ads, cid: str, login: str | None, campaign_id: str,
     return max(dates).strftime("%Y-%m-%d") if dates else None
 
 
+
+def check_values(strategy: str, target_cpa: float | None, target_roas_percent: float | None,
+                 cpc_bid_ceiling: float | None, impression_share_location: str | None,
+                 impression_share_percent: float | None, profile: Profile) -> None:
+    """Only the values that belong to the strategy, within the profile's limits."""
+    if target_cpa is not None and strategy not in ("MAXIMIZE_CONVERSIONS", "TARGET_CPA"):
+        raise WriteRefused("target_cpa only goes with MAXIMIZE_CONVERSIONS.")
+    if target_roas_percent is not None and strategy not in ("MAXIMIZE_CONVERSION_VALUE", "TARGET_ROAS"):
+        raise WriteRefused("target_roas_percent only goes with MAXIMIZE_CONVERSION_VALUE.")
+    if cpc_bid_ceiling is not None and strategy not in ("TARGET_SPEND", "TARGET_IMPRESSION_SHARE"):
+        raise WriteRefused("cpc_bid_ceiling only goes with TARGET_SPEND or TARGET_IMPRESSION_SHARE.")
+    if (impression_share_location or impression_share_percent is not None) and strategy != "TARGET_IMPRESSION_SHARE":
+        raise WriteRefused("impression_share_location and impression_share_percent only go with TARGET_IMPRESSION_SHARE.")
+    for name, value in (("target_cpa", target_cpa), ("target_roas_percent", target_roas_percent),
+                        ("cpc_bid_ceiling", cpc_bid_ceiling)):
+        if value is not None and value <= 0:
+            raise WriteRefused(f"{name} must be greater than 0.")
+    if target_cpa is not None and profile.max_target_cpa is not None and target_cpa > profile.max_target_cpa:
+        raise WriteRefused(f"{target_cpa:.2f} is above this profile's max_target_cpa of {profile.max_target_cpa:.2f}.")
+    if strategy in ("TARGET_SPEND", "TARGET_IMPRESSION_SHARE") and profile.max_cpc is not None:
+        if cpc_bid_ceiling is None:
+            raise WriteRefused(f"This profile sets max_cpc ({profile.max_cpc:.2f}), so cpc_bid_ceiling is required.")
+        if cpc_bid_ceiling > profile.max_cpc:
+            raise WriteRefused(f"cpc_bid_ceiling {cpc_bid_ceiling:.2f} is above this profile's max_cpc of "
+                               f"{profile.max_cpc:.2f}.")
+    if strategy == "TARGET_IMPRESSION_SHARE":
+        if str(impression_share_location or "").upper() not in LOCATIONS:
+            raise WriteRefused(f"impression_share_location must be one of: {', '.join(LOCATIONS)}.")
+        if impression_share_percent is None or not 0 < impression_share_percent <= 100:
+            raise WriteRefused("impression_share_percent must be between 1 and 100.")
+
+
+def apply_standard(client, campaign, strategy: str, target_cpa: float | None, target_roas_percent: float | None,
+                   cpc_bid_ceiling: float | None, impression_share_location: str | None,
+                   impression_share_percent: float | None) -> tuple[list[str], dict[str, Any]]:
+    """Set a standard strategy on a Campaign message (values checked before). Returns (mask paths, new state)."""
+    new: dict[str, Any] = {"strategy": strategy}
+    if strategy == "MAXIMIZE_CONVERSIONS":
+        new["target_cpa"] = round(target_cpa, 2) if target_cpa else None
+        campaign.maximize_conversions.target_cpa_micros = _micros(target_cpa) if target_cpa else 0
+        return ["maximize_conversions.target_cpa_micros"], new
+    if strategy == "MAXIMIZE_CONVERSION_VALUE":
+        new["target_roas_percent"] = round(target_roas_percent, 1) if target_roas_percent else None
+        campaign.maximize_conversion_value.target_roas = (target_roas_percent / 100) if target_roas_percent else 0
+        return ["maximize_conversion_value.target_roas"], new
+    if strategy == "TARGET_SPEND":
+        new["cpc_bid_ceiling"] = round(cpc_bid_ceiling, 2) if cpc_bid_ceiling else None
+        campaign.target_spend.cpc_bid_ceiling_micros = _micros(cpc_bid_ceiling) if cpc_bid_ceiling else 0
+        return ["target_spend.cpc_bid_ceiling_micros"], new
+    if strategy == "MANUAL_CPC":
+        campaign.manual_cpc.enhanced_cpc_enabled = False
+        return ["manual_cpc.enhanced_cpc_enabled"], new
+    location = str(impression_share_location or "").upper()
+    new.update(location=location, impression_share_percent=round(impression_share_percent, 1),
+               cpc_bid_ceiling=round(cpc_bid_ceiling, 2) if cpc_bid_ceiling else None)
+    campaign.target_impression_share.location = client.enums.TargetImpressionShareLocationEnum[location]
+    campaign.target_impression_share.location_fraction_micros = int(round(impression_share_percent * 10_000))
+    campaign.target_impression_share.cpc_bid_ceiling_micros = _micros(cpc_bid_ceiling) if cpc_bid_ceiling else 0
+    return ["target_impression_share.location", "target_impression_share.location_fraction_micros",
+            "target_impression_share.cpc_bid_ceiling_micros"], new
+
+
 def plan_bidding_strategy(ads: Ads, cid: str, login: str | None, campaign_id: str, strategy: str,
                           target_cpa: float | None, target_roas_percent: float | None, cpc_bid_ceiling: float | None,
                           impression_share_location: str | None, impression_share_percent: float | None,
@@ -144,68 +206,21 @@ def plan_bidding_strategy(ads: Ads, cid: str, login: str | None, campaign_id: st
     currency = row.get("customer.currency_code") or ""
     channel = row["campaign.advertising_channel_type"]
     if row.get("campaign.bidding_strategy"):
-        raise WriteRefused(f"{label} uses a portfolio bid strategy that can be shared by several campaigns. ads-pilot "
-                           "does not change portfolio strategies. Use Google Ads.")
+        raise WriteRefused(f"{label} uses a portfolio bid strategy. To take it out of the portfolio, use "
+                           "manage_portfolio_bidding_strategy with action unassign.")
     if channel == "PERFORMANCE_MAX" and strategy not in PMAX_STRATEGIES:
         raise WriteRefused(f"{label} is Performance Max, which only supports {' and '.join(PMAX_STRATEGIES)}.")
     if channel not in ("SEARCH", "PERFORMANCE_MAX"):
         raise WriteRefused(f"{label} is a {channel} campaign. ads-pilot switches strategies only for Search and "
                            "Performance Max campaigns.")
 
-    # Only the values that belong to the new strategy.
-    if target_cpa is not None and strategy != "MAXIMIZE_CONVERSIONS":
-        raise WriteRefused("target_cpa only goes with MAXIMIZE_CONVERSIONS.")
-    if target_roas_percent is not None and strategy != "MAXIMIZE_CONVERSION_VALUE":
-        raise WriteRefused("target_roas_percent only goes with MAXIMIZE_CONVERSION_VALUE.")
-    if cpc_bid_ceiling is not None and strategy not in ("TARGET_SPEND", "TARGET_IMPRESSION_SHARE"):
-        raise WriteRefused("cpc_bid_ceiling only goes with TARGET_SPEND or TARGET_IMPRESSION_SHARE.")
-    if (impression_share_location or impression_share_percent is not None) and strategy != "TARGET_IMPRESSION_SHARE":
-        raise WriteRefused("impression_share_location and impression_share_percent only go with TARGET_IMPRESSION_SHARE.")
-    for name, value in (("target_cpa", target_cpa), ("target_roas_percent", target_roas_percent),
-                        ("cpc_bid_ceiling", cpc_bid_ceiling)):
-        if value is not None and value <= 0:
-            raise WriteRefused(f"{name} must be greater than 0.")
-    if target_cpa is not None and profile.max_target_cpa is not None and target_cpa > profile.max_target_cpa:
-        raise WriteRefused(f"{target_cpa:.2f} is above this profile's max_target_cpa of {profile.max_target_cpa:.2f}.")
-    if strategy in ("TARGET_SPEND", "TARGET_IMPRESSION_SHARE") and profile.max_cpc is not None:
-        if cpc_bid_ceiling is None:
-            raise WriteRefused(f"This profile sets max_cpc ({profile.max_cpc:.2f}), so cpc_bid_ceiling is required.")
-        if cpc_bid_ceiling > profile.max_cpc:
-            raise WriteRefused(f"cpc_bid_ceiling {cpc_bid_ceiling:.2f} is above this profile's max_cpc of {profile.max_cpc:.2f}.")
-
-    new: dict[str, Any] = {"strategy": strategy}
+    check_values(strategy, target_cpa, target_roas_percent, cpc_bid_ceiling, impression_share_location,
+                 impression_share_percent, profile)
     client = ads.client(login)
     op = client.get_type("CampaignOperation")
-    campaign = op.update
-    campaign.resource_name = row["campaign.resource_name"]
-    if strategy == "MAXIMIZE_CONVERSIONS":
-        new["target_cpa"] = round(target_cpa, 2) if target_cpa else None
-        campaign.maximize_conversions.target_cpa_micros = _micros(target_cpa) if target_cpa else 0
-        paths = ["maximize_conversions.target_cpa_micros"]
-    elif strategy == "MAXIMIZE_CONVERSION_VALUE":
-        new["target_roas_percent"] = round(target_roas_percent, 1) if target_roas_percent else None
-        campaign.maximize_conversion_value.target_roas = (target_roas_percent / 100) if target_roas_percent else 0
-        paths = ["maximize_conversion_value.target_roas"]
-    elif strategy == "TARGET_SPEND":
-        new["cpc_bid_ceiling"] = round(cpc_bid_ceiling, 2) if cpc_bid_ceiling else None
-        campaign.target_spend.cpc_bid_ceiling_micros = _micros(cpc_bid_ceiling) if cpc_bid_ceiling else 0
-        paths = ["target_spend.cpc_bid_ceiling_micros"]
-    elif strategy == "MANUAL_CPC":
-        campaign.manual_cpc.enhanced_cpc_enabled = False
-        paths = ["manual_cpc.enhanced_cpc_enabled"]
-    else:
-        location = str(impression_share_location or "").upper()
-        if location not in LOCATIONS:
-            raise WriteRefused(f"impression_share_location must be one of: {', '.join(LOCATIONS)}.")
-        if impression_share_percent is None or not 0 < impression_share_percent <= 100:
-            raise WriteRefused("impression_share_percent must be between 1 and 100.")
-        new.update(location=location, impression_share_percent=round(impression_share_percent, 1),
-                   cpc_bid_ceiling=round(cpc_bid_ceiling, 2) if cpc_bid_ceiling else None)
-        campaign.target_impression_share.location = client.enums.TargetImpressionShareLocationEnum[location]
-        campaign.target_impression_share.location_fraction_micros = int(round(impression_share_percent * 10_000))
-        campaign.target_impression_share.cpc_bid_ceiling_micros = _micros(cpc_bid_ceiling) if cpc_bid_ceiling else 0
-        paths = ["target_impression_share.location", "target_impression_share.location_fraction_micros",
-                 "target_impression_share.cpc_bid_ceiling_micros"]
+    op.update.resource_name = row["campaign.resource_name"]
+    paths, new = apply_standard(client, op.update, strategy, target_cpa, target_roas_percent, cpc_bid_ceiling,
+                                impression_share_location, impression_share_percent)
 
     old = current_state(row)
     plan = Plan("CampaignService", "mutate_campaigns")

@@ -45,7 +45,8 @@ MINUTES = {0: "ZERO", 15: "FIFTEEN", 30: "THIRTY", 45: "FORTY_FIVE"}
 
 
 # Tools that need the access level "full". Every other write tool needs "standard".
-FULL_LEVEL_TOOLS = {"set_bidding_strategy", "set_conversion_action_status", "set_conversion_action_settings"}
+FULL_LEVEL_TOOLS = {"set_bidding_strategy", "manage_portfolio_bidding_strategy", "set_conversion_action_status",
+                    "set_conversion_action_settings"}
 
 
 def required_level(tool: str) -> str:

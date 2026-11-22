@@ -25,6 +25,7 @@ Small and local: the server runs on your own machine with your own Google Cloud 
 | `pmax_channel_report` | Performance Max by channel (Search, YouTube, Discover, Maps, ...) with conversions per action |
 | `targeting_overview` | Locations, languages, networks, location assets per campaign; warns about campaigns running worldwide |
 | `list_conversion_actions` | Conversion actions with type, status, primary or secondary, counting, value, windows, conversions, and whether ads-pilot can change them |
+| `list_bidding_strategies` | Portfolio bid strategies with targets, campaigns, budgets and Google's status per campaign |
 | `recent_changes` | Latest executed changes from the change log, with their `change_id` |
 
 **Change** (every one: dry run first, then confirm; level = access level the account needs)
@@ -40,6 +41,7 @@ Small and local: the server runs on your own machine with your own Google Cloud 
 | `set_bidding_target` | standard | Target CPA or target ROAS of the current strategy, within the profile's limits; never switches strategies |
 | `set_keyword_bid` | standard | Max CPC of keywords or ad groups with manual CPC bidding |
 | `set_bidding_strategy` | full | Switch the bid strategy: Maximize conversions (opt. target CPA), Maximize conversion value (opt. target ROAS), Maximize clicks (opt. max CPC), Manual CPC, Target impression share. Performance Max: the two Maximize conversion strategies |
+| `manage_portfolio_bidding_strategy` | full | Portfolio bid strategies shared by several Search campaigns, each keeping its own budget: create, assign, unassign, update targets, remove unused ones |
 | `set_conversion_action_status` | full | Enable or remove conversion actions; removing only without conversions in the last 90 days, blocked when a smart bidding campaign would lose its last primary action, unless explicitly allowed |
 | `set_conversion_action_settings` | full | Primary or secondary, value, counting, conversion windows, minimum call length |
 | `set_device_bid_adjustment` | standard | Bid adjustment per device, -100% to +900% |
@@ -58,7 +60,7 @@ Details on conversion actions, including what the API allows per type: [docs/con
 ## Guardrails
 
 1. **Dry run by default.** A write tool first only validates with Google and returns every change with old and new value plus a `confirm_token`. It executes only when called again with `confirm=true` and that token. The token is valid for 15 minutes and no longer fits if the arguments or the account changed in between.
-2. **Access level per account,** modelled on Google Ads' own: `read_only` (reading and reports), `standard` (the daily work), `full` (also bid strategies and conversion actions). Accounts not listed are read only. Claude cannot change the levels; only the profile file can.
+2. **Access level per account,** modelled on Google Ads' own: `read_only` (reading and reports), `standard` (the daily work), `full` (also bid strategies, portfolios and conversion actions). Accounts not listed are read only. Claude cannot change the levels; only the profile file can.
 3. **One profile per login.** Chosen at startup. Every response names profile and customer ID.
 4. **No deleting of campaigns, ad groups, ads or keywords,** only pause and enable. Removing works for things you can add back (negative keywords, locations, languages, search themes, list links, replaced text assets). The one final removal: conversion actions without data, at level `full`. No billing, users or account settings.
 5. **Budget limits.** Campaign budgets only up to `max_daily_budget` and at most `max_budget_change_percent` per step (default 50%), set in the profile. No shared budgets.

@@ -51,7 +51,7 @@ Agencies face one more risk that hardly any tool guards against on purpose: **a 
 - Negative keywords on campaign, ad group, list and account level, also for Performance Max
 - Location and language targeting, Search partners and Display network
 - Target CPA and target ROAS, max CPC for manual bids
-- Switch bid strategies (level full)
+- Switch bid strategies, also as a portfolio shared by several campaigns with separate budgets (level full)
 - Conversion actions: list, enable, remove unused ones, primary or secondary, value, counting, windows (level full)
 - Performance Max: text assets, search themes, brand exclusions
 - Undo any logged change with one call

@@ -44,8 +44,8 @@ def plan_bidding_target(ads: Ads, cid: str, login: str | None, campaign_id: str,
     strategy = row["campaign.bidding_strategy_type"]
     currency = row.get("customer.currency_code") or ""
     if row.get("campaign.bidding_strategy"):
-        raise WriteRefused(f"{label} uses a portfolio bid strategy that can be shared by several campaigns. "
-                           "Changing its target would affect all of them, so ads-pilot does not do it. Use Google Ads.")
+        raise WriteRefused(f"{label} uses a portfolio bid strategy shared by several campaigns. Change its targets with "
+                           "manage_portfolio_bidding_strategy (action update); that shows every campaign it affects.")
 
     if target_cpa is not None:
         field = CPA_FIELDS.get(strategy)
