@@ -170,7 +170,7 @@ uv run python scripts/og/render.py
 
 ## Status
 
-Early version. Tested against Google Ads API v26 (google-ads 35.1.0) and FastMCP 4.2.
+Version 1.0. Tested against Google Ads API v26 (google-ads 35.1.0) and FastMCP 4.2.
 
 ## License
 

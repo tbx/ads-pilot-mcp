@@ -1,6 +1,6 @@
 [project]
 name = "ads-pilot-mcp"
-version = "0.1.0"
+version = "1.0.0"
 description = "MCP server for Google Ads with dry runs, an account allowlist and a change log"
 readme = "README.md"
 license = "AGPL-3.0-only"
